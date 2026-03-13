@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0a0f1e;
+  color: #f0f4f8;
+  font-family: var(--font-body);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0d1b2a; }
+::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2a5280; }
+
+/* Display font utility */
+.font-display { font-family: var(--font-display); }
+
+/* Ice rink line effect */
+.rink-line {
+  position: relative;
+}
+.rink-line::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #1e3a5f 30%, #1e3a5f 70%, transparent);
+}
+
+/* Stat badge */
+.stat-up { color: #34d399; }
+.stat-down { color: #f87171; }
+.stat-neutral { color: #94a3b8; }
+
+/* Card styles */
+.kmha-card {
+  background: #111827;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+}
+
+/* Table styles */
+.data-table th {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: #64748b;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #1e3a5f;
+}
+
+.data-table td {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid #0d1b2a;
+  font-size: 0.875rem;
+}
+
+.data-table tr:hover td {
+  background: rgba(14, 165, 233, 0.04);
+}
+
+/* Input styles */
+.kmha-input {
+  background: #0d1b2a;
+  border: 1px solid #1e3a5f;
+  color: white;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  transition: border-color 0.15s;
+}
+.kmha-input:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.15);
+}
+
+.kmha-select {
+  background: #0d1b2a;
+  border: 1px solid #1e3a5f;
+  color: white;
+  border-radius: 6px;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+}
+.kmha-select:focus {
+  outline: none;
+  border-color: #0ea5e9;
+}
+
+/* Button */
+.kmha-btn {
+  background: #0284c7;
+  color: white;
+  border-radius: 6px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.15s, transform 0.1s;
+  border: none;
+  cursor: pointer;
+}
+.kmha-btn:hover { background: #0369a1; }
+.kmha-btn:active { transform: scale(0.98); }
+.kmha-btn:disabled { background: #334155; cursor: not-allowed; }
+
+.kmha-btn-ghost {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #1e3a5f;
+  border-radius: 6px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.kmha-btn-ghost:hover { border-color: #0ea5e9; color: #0ea5e9; }
+
+/* Tag/Badge */
+.team-badge {
+  display: inline-block;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: #38bdf8;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Rank number */
+.rank-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.rank-1 { color: #fbbf24; }
+.rank-2 { color: #94a3b8; }
+.rank-3 { color: #b45309; }
