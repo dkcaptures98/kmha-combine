@@ -138,3 +138,4 @@ export default function AthletesPage() {
     </div>
   )
 }
+export const dynamic = 'force-dynamic'

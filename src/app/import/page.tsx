@@ -218,3 +218,4 @@ export default function ImportPage() {
     </div>
   )
 }
+export const dynamic = 'force-dynamic'

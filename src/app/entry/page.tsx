@@ -209,3 +209,4 @@ export default function EntryPage() {
     </div>
   )
 }
+export const dynamic = 'force-dynamic'
