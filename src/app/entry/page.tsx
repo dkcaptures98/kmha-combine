@@ -104,7 +104,7 @@ export default function EntryPage() {
             <label className="block text-xs font-semibold tracking-widest uppercase mb-2" style={{ color: '#64748b', fontFamily: 'var(--font-display)' }}>
               Month
             </label>
-            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="kmha-select w-full">
+            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value as any)} className="kmha-select w-full">
               {ALL_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
