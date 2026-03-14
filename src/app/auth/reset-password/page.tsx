@@ -1,8 +1,6 @@
 'use client'
-
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -10,23 +8,17 @@ export default function ResetPasswordPage() {
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
   const [mounted, setMounted] = useState(false)
-
   useEffect(() => { setMounted(true) }, [])
-
   async function handleReset(e: React.FormEvent) {
     e.preventDefault()
     if (password !== confirm) { setError('Passwords do not match'); return }
     if (password.length < 8) { setError('Password must be at least 8 characters'); return }
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     const supabase = createClient()
     const { error } = await supabase.auth.updateUser({ password })
-    if (error) { setError(error.message); setLoading(false) }
-    else setDone(true)
+    if (error) { setError(error.message); setLoading(false) } else setDone(true)
   }
-
   if (!mounted) return null
-
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #020b18 0%, #051428 50%, #020d1f 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ width: '100%', maxWidth: '400px' }}>
