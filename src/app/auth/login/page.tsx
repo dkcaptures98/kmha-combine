@@ -31,8 +31,10 @@ export default function LoginPage() {
         <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:'400px', height:'400px', border:'1px solid rgba(59,130,246,0.08)', borderRadius:'50%' }} />
       </div>
       <div style={{ width:'100%', maxWidth:'400px', position:'relative' }}>
-        <div style={{ textAlign:'center', marginBottom:'40px' }}>
-          <img src="/logo.jpg" alt="KMHA Logo" style={{ width:'100px', height:'100px', borderRadius:'16px', marginBottom:'16px', objectFit:'contain', boxShadow:'0 0 40px rgba(37,99,235,0.3)' }} />
+        <div style={{ textAlign:'center', marginBottom:'32px' }}>
+          <div style={{ display:'flex', justifyContent:'center', marginBottom:'16px' }}>
+            <img src="/logo.jpg" alt="KMHA Logo" style={{ width:'120px', height:'120px', borderRadius:'20px', objectFit:'cover', boxShadow:'0 8px 32px rgba(0,0,0,0.5), 0 0 40px rgba(37,99,235,0.2)', display:'block' }} />
+          </div>
           <h1 style={{ color:'white', fontSize:'28px', fontWeight:700, letterSpacing:'0.12em', margin:0 }}>KMHA</h1>
           <p style={{ color:'#64748b', fontSize:'13px', margin:'4px 0 0', letterSpacing:'0.06em' }}>COMBINE PERFORMANCE TRACKER</p>
         </div>
