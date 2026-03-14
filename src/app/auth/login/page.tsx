@@ -32,9 +32,7 @@ export default function LoginPage() {
       </div>
       <div style={{ width:'100%', maxWidth:'400px', position:'relative' }}>
         <div style={{ textAlign:'center', marginBottom:'40px' }}>
-          <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:'72px', height:'72px', borderRadius:'16px', marginBottom:'16px', background:'linear-gradient(135deg,#1d4ed8,#2563eb)', boxShadow:'0 0 40px rgba(37,99,235,0.3)' }}>
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><path d="M18 3L22 13H33L24 19L27 30L18 24L9 30L12 19L3 13H14L18 3Z" fill="white" opacity="0.9"/></svg>
-          </div>
+          <img src="/logo.jpg" alt="KMHA Logo" style={{ width:'100px', height:'100px', borderRadius:'16px', marginBottom:'16px', objectFit:'contain', boxShadow:'0 0 40px rgba(37,99,235,0.3)' }} />
           <h1 style={{ color:'white', fontSize:'28px', fontWeight:700, letterSpacing:'0.12em', margin:0 }}>KMHA</h1>
           <p style={{ color:'#64748b', fontSize:'13px', margin:'4px 0 0', letterSpacing:'0.06em' }}>COMBINE PERFORMANCE TRACKER</p>
         </div>
