@@ -10,10 +10,6 @@ const ALL_MONTHS = ['January','February','March','April','May','June','July','Au
 const ALL_YEARS = [2024, 2025, 2026, 2027, 2028]
 
 const SEASONS = [
-  
-  
-  
-  
   { label: '2024-2025 In-Season', months: ['September','October','November','December','January','February','March'], years: [2024,2025], fallYear: 2024, springYear: 2025 },
   { label: '2025 Off-Season',     months: ['May','June','July','August'], years: [2025], fallYear: 2025, springYear: 2025 },
   { label: '2025-2026 In-Season', months: ['September','October','November','December','January','February','March'], years: [2025,2026], fallYear: 2025, springYear: 2026 },
@@ -56,34 +52,24 @@ function Leaderboard({ testType, entries, athletes }: { testType: TestType; entr
   )
 }
 
-function MultiSelect({ label, options, selected, onToggle, onAll, onNone, colorFn }: {
+function MultiSelect({ label, options, selected, onToggle, onAll, onNone }: {
   label: string; options: string[]; selected: string[];
   onToggle: (v: string) => void; onAll?: () => void; onNone?: () => void;
-  colorFn?: (v: string, sel: boolean) => { bg: string; border: string; color: string }
 }) {
-  const defaultColor = (v: string, sel: boolean) => ({
-    bg: sel ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.03)',
-    border: sel ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)',
-    color: sel ? '#60a5fa' : '#475569'
-  })
-  const cf = colorFn || defaultColor
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-display)' }}>{label}</span>
-        {(onAll || onNone) && (
-          <div style={{ display: 'flex', gap: '10px' }}>
-            {onAll && <button onClick={onAll} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '11px', cursor: 'pointer', padding: 0 }}>All</button>}
-            {onNone && <button onClick={onNone} style={{ background: 'none', border: 'none', color: '#475569', fontSize: '11px', cursor: 'pointer', padding: 0 }}>None</button>}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {onAll && <button onClick={onAll} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '11px', cursor: 'pointer', padding: 0 }}>All</button>}
+          {onNone && <button onClick={onNone} style={{ background: 'none', border: 'none', color: '#475569', fontSize: '11px', cursor: 'pointer', padding: 0 }}>None</button>}
+        </div>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
         {options.map(opt => {
           const sel = selected.includes(opt)
-          const c = cf(opt, sel)
           return (
-            <button key={opt} onClick={() => onToggle(opt)} style={{ padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: c.bg, border: `1px solid ${c.border}`, color: c.color }}>
+            <button key={opt} onClick={() => onToggle(opt)} style={{ padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: sel ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${sel ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`, color: sel ? '#60a5fa' : '#475569' }}>
               {opt}
             </button>
           )
@@ -110,7 +96,7 @@ export default function DashboardPage() {
       .then(([a, e]) => { setAthletes(a); setEntries(e); setLoading(false) })
   }, [])
 
-  const currentSeason = useMemo(() => SEASONS.find(s => s.label === activeSeason) || SEASONS[6], [activeSeason])
+  const currentSeason = useMemo(() => SEASONS.find(s => s.label === activeSeason) || SEASONS[2], [activeSeason])
 
   const filteredEntries = useMemo(() => {
     return entries.filter(e => {
@@ -139,11 +125,6 @@ export default function DashboardPage() {
     entries.some(e => s.years.includes(e.year) && s.months.includes(e.month))
   ), [entries])
 
-  const availableYears = useMemo(() => {
-    const years = [...new Set(entries.map(e => e.year))].sort()
-    return ALL_YEARS.filter(y => years.includes(y) || y >= new Date().getFullYear())
-  }, [entries])
-
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
       <div style={{ textAlign: 'center' }}>
@@ -155,7 +136,6 @@ export default function DashboardPage() {
 
   return (
     <div style={{ paddingBottom: '48px' }}>
-      {/* Header */}
       <div style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', padding: '24px 0 20px', marginBottom: '24px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, letterSpacing: '0.06em', color: 'white' }}>COMBINE DASHBOARD</h1>
@@ -167,56 +147,40 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
         <StatCard label="Total Tests" value={filteredEntries.length.toLocaleString()} accent />
         <StatCard label="Athletes" value={new Set(filteredEntries.map(e => e.athlete_id)).size} />
         <StatCard label="Teams" value={new Set(filteredEntries.map(e => e.team)).size} />
       </div>
 
-      {/* Filters */}
       <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '20px', marginBottom: '24px' }}>
-
-        {/* Filter mode toggle */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-          <button onClick={() => setFilterMode('season')} style={{ padding: '8px 20px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: filterMode === 'season' ? 'linear-gradient(135deg,#1d4ed8,#2563eb)' : 'rgba(255,255,255,0.03)', border: `1px solid ${filterMode === 'season' ? '#2563eb' : 'rgba(59,130,246,0.15)'}`, color: filterMode === 'season' ? 'white' : '#475569', boxShadow: filterMode === 'season' ? '0 4px 12px rgba(37,99,235,0.25)' : 'none' }}>
-            Season Preset
-          </button>
-          <button onClick={() => setFilterMode('custom')} style={{ padding: '8px 20px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: filterMode === 'custom' ? 'linear-gradient(135deg,#1d4ed8,#2563eb)' : 'rgba(255,255,255,0.03)', border: `1px solid ${filterMode === 'custom' ? '#2563eb' : 'rgba(59,130,246,0.15)'}`, color: filterMode === 'custom' ? 'white' : '#475569', boxShadow: filterMode === 'custom' ? '0 4px 12px rgba(37,99,235,0.25)' : 'none' }}>
-            Custom Range
-          </button>
+          <button onClick={() => setFilterMode('season')} style={{ padding: '8px 20px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', background: filterMode === 'season' ? 'linear-gradient(135deg,#1d4ed8,#2563eb)' : 'rgba(255,255,255,0.03)', border: `1px solid ${filterMode === 'season' ? '#2563eb' : 'rgba(59,130,246,0.15)'}`, color: filterMode === 'season' ? 'white' : '#475569', boxShadow: filterMode === 'season' ? '0 4px 12px rgba(37,99,235,0.25)' : 'none' }}>Season Preset</button>
+          <button onClick={() => setFilterMode('custom')} style={{ padding: '8px 20px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', background: filterMode === 'custom' ? 'linear-gradient(135deg,#1d4ed8,#2563eb)' : 'rgba(255,255,255,0.03)', border: `1px solid ${filterMode === 'custom' ? '#2563eb' : 'rgba(59,130,246,0.15)'}`, color: filterMode === 'custom' ? 'white' : '#475569', boxShadow: filterMode === 'custom' ? '0 4px 12px rgba(37,99,235,0.25)' : 'none' }}>Custom Range</button>
         </div>
 
-        {/* Season preset */}
         {filterMode === 'season' && (
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-display)', marginBottom: '8px' }}>Select Season</label>
             <select value={activeSeason} onChange={e => setActiveSeason(e.target.value)} className="kmha-select" style={{ width: '100%', maxWidth: '320px' }}>
-              {SEASONS.map(s => {
-                const hasData = seasonsWithData.some(sd => sd.label === s.label)
-                return <option key={s.label} value={s.label}>{s.label}{hasData ? '' : ' (no data yet)'}</option>
-              })}
+              {SEASONS.map(s => <option key={s.label} value={s.label}>{s.label}{seasonsWithData.some(sd => sd.label === s.label) ? '' : ' (no data yet)'}</option>)}
             </select>
             <div style={{ marginTop: '10px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '6px', padding: '8px 12px', display: 'inline-block' }}>
               <span style={{ color: '#64748b', fontSize: '12px' }}>
-                <strong style={{ color: '#60a5fa' }}>{activeSeason}</strong>
-                {' · '}
-                {currentSeason.months.join(', ')}
-                {currentSeason.years.length === 2 ? ` (${currentSeason.years[0]}–${currentSeason.years[1]})` : ` (${currentSeason.years[0]})`}
+                <strong style={{ color: '#60a5fa' }}>{activeSeason}</strong>{' · '}{currentSeason.months.join(', ')}{currentSeason.years.length === 2 ? ` (${currentSeason.years[0]}–${currentSeason.years[1]})` : ` (${currentSeason.years[0]})`}
               </span>
             </div>
           </div>
         )}
 
-        {/* Custom range */}
         {filterMode === 'custom' && (
           <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <MultiSelect
               label="Years (multi-select)"
-              options={availableYears.map(String)}
+              options={ALL_YEARS.map(String)}
               selected={customYears.map(String)}
               onToggle={v => setCustomYears(prev => prev.includes(+v) ? prev.filter(y => y !== +v) : [...prev, +v])}
-              onAll={() => setCustomYears([...availableYears])}
+              onAll={() => setCustomYears([...ALL_YEARS])}
               onNone={() => setCustomYears([])}
             />
             <MultiSelect
@@ -230,7 +194,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Teams */}
         <MultiSelect
           label="Teams"
           options={[...TEAMS]}
@@ -241,32 +204,28 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Test tabs */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
         {TEST_TYPES.map(test => (
-          <button key={test} onClick={() => setActiveTest(test)} style={{ padding: '8px 16px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s', background: activeTest === test ? 'linear-gradient(135deg,#1d4ed8,#2563eb)' : 'rgba(255,255,255,0.03)', border: `1px solid ${activeTest === test ? '#2563eb' : 'rgba(59,130,246,0.1)'}`, color: activeTest === test ? 'white' : '#475569', boxShadow: activeTest === test ? '0 4px 12px rgba(37,99,235,0.25)' : 'none' }}>
+          <button key={test} onClick={() => setActiveTest(test)} style={{ padding: '8px 16px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer', background: activeTest === test ? 'linear-gradient(135deg,#1d4ed8,#2563eb)' : 'rgba(255,255,255,0.03)', border: `1px solid ${activeTest === test ? '#2563eb' : 'rgba(59,130,246,0.1)'}`, color: activeTest === test ? 'white' : '#475569', boxShadow: activeTest === test ? '0 4px 12px rgba(37,99,235,0.25)' : 'none' }}>
             {TEST_LABELS[test]}
           </button>
         ))}
       </div>
 
-      {/* View toggle */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '20px' }}>
         {(['leaderboard', 'changes'] as const).map(v => (
-          <button key={v} onClick={() => setView(v)} style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s', background: view === v ? 'rgba(59,130,246,0.15)' : 'transparent', border: `1px solid ${view === v ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`, color: view === v ? '#60a5fa' : '#475569' }}>
+          <button key={v} onClick={() => setView(v)} style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', cursor: 'pointer', background: view === v ? 'rgba(59,130,246,0.15)' : 'transparent', border: `1px solid ${view === v ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`, color: view === v ? '#60a5fa' : '#475569' }}>
             {v === 'leaderboard' ? 'Leaderboards' : 'Most Improved'}
           </button>
         ))}
       </div>
 
-      {/* Leaderboards */}
       {view === 'leaderboard' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
           {TEST_TYPES.map(test => <Leaderboard key={test} testType={test} entries={filteredEntries} athletes={filteredAthletes} />)}
         </div>
       )}
 
-      {/* Most Improved */}
       {view === 'changes' && (
         <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(59,130,246,0.1)' }}>
@@ -275,11 +234,7 @@ export default function DashboardPage() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr>
-                  {['Athlete','Team','Start','Latest','Improvement'].map(h => (
-                    <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Athlete' ? 'left' : 'right', fontSize: '11px', fontWeight: 600, color: '#334155', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-display)', borderBottom: '1px solid rgba(59,130,246,0.08)' }}>{h}</th>
-                  ))}
-                </tr>
+                <tr>{['Athlete','Team','Start','Latest','Improvement'].map(h => <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Athlete' ? 'left' : 'right', fontSize: '11px', fontWeight: 600, color: '#334155', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-display)', borderBottom: '1px solid rgba(59,130,246,0.08)' }}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {topChanges.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#334155', fontSize: '13px' }}>No improvement data for this selection</td></tr>}
