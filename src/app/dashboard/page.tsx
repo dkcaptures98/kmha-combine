@@ -6,9 +6,22 @@ import { getTeamLeaders, getTopChanges, formatScore } from '@/lib/analytics'
 
 export const dynamic = 'force-dynamic'
 
-const SEASON_MONTHS = ['September', 'October', 'November', 'December', 'January', 'February', 'March']
 const ALL_MONTHS_LIST = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030]
+
+// Proper season definitions
+const SEASONS = [
+  { label: '2022-2023 In-Season', months: ['September','October','November','December','January','February','March'], years: [2022, 2023] },
+  { label: '2023 Off-Season',     months: ['May','June','July','August'], years: [2023] },
+  { label: '2023-2024 In-Season', months: ['September','October','November','December','January','February','March'], years: [2023, 2024] },
+  { label: '2024 Off-Season',     months: ['May','June','July','August'], years: [2024] },
+  { label: '2024-2025 In-Season', months: ['September','October','November','December','January','February','March'], years: [2024, 2025] },
+  { label: '2025 Off-Season',     months: ['May','June','July','August'], years: [2025] },
+  { label: '2025-2026 In-Season', months: ['September','October','November','December','January','February','March'], years: [2025, 2026] },
+  { label: '2026 Off-Season',     months: ['May','June','July','August'], years: [2026] },
+  { label: '2026-2027 In-Season', months: ['September','October','November','December','January','February','March'], years: [2026, 2027] },
+  { label: '2027 Off-Season',     months: ['May','June','July','August'], years: [2027] },
+  { label: '2027-2028 In-Season', months: ['September','October','November','December','January','February','March'], years: [2027, 2028] },
+]
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
@@ -21,24 +34,22 @@ function StatCard({ label, value, accent }: { label: string; value: string | num
 
 function Leaderboard({ testType, entries, athletes }: { testType: TestType; entries: CombineEntry[]; athletes: Athlete[] }) {
   const leaders = getTeamLeaders(entries, athletes, testType, 5)
-  const medals = ['#FFB800', '#94a3b8', '#cd7f32']
+  const medalColors = ['#FFB800', '#94a3b8', '#cd7f32']
   return (
     <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(59,130,246,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-display)' }}>{TEST_LABELS[testType]}</h3>
         <span style={{ fontSize: '11px', color: '#334155', fontFamily: 'var(--font-display)' }}>{TEST_UNITS[testType]}</span>
       </div>
-      {leaders.length === 0 && <p style={{ color: '#334155', textAlign: 'center', padding: '24px', fontSize: '13px', margin: 0 }}>No data</p>}
+      {leaders.length === 0 && <p style={{ color: '#334155', textAlign: 'center', padding: '24px', fontSize: '13px', margin: 0 }}>No data for selected filters</p>}
       {leaders.map((l, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 16px', borderBottom: i < leaders.length - 1 ? '1px solid rgba(59,130,246,0.06)' : 'none', background: i === 0 ? 'rgba(255,184,0,0.04)' : 'transparent' }}>
-          <span style={{ width: '20px', textAlign: 'center', fontSize: '16px', flexShrink: 0 }}>
-            {i < 3 ? <span style={{ color: medals[i], fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: '14px' }}>{i + 1}</span> : <span style={{ color: '#334155', fontFamily: 'var(--font-display)', fontSize: '13px' }}>{i + 1}</span>}
-          </span>
+          <span style={{ width: '20px', textAlign: 'center', flexShrink: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px', color: i < 3 ? medalColors[i] : '#334155' }}>{i + 1}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: '13px', fontWeight: 500, color: '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.athlete.first_name} {l.athlete.last_name}</p>
-            <p style={{ margin: 0, fontSize: '11px', color: '#334155' }}><span style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: '#60a5fa', borderRadius: '3px', padding: '1px 5px', fontSize: '10px', fontFamily: 'var(--font-display)', fontWeight: 600 }}>{l.athlete.team}</span></p>
+            <span style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: '#60a5fa', borderRadius: '3px', padding: '1px 5px', fontSize: '10px', fontFamily: 'var(--font-display)', fontWeight: 600 }}>{l.athlete.team}</span>
           </div>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px', color: i === 0 ? '#FFB800' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#475569', flexShrink: 0 }}>{formatScore(l.score, testType)}</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px', color: i < 3 ? medalColors[i] : '#475569', flexShrink: 0 }}>{formatScore(l.score, testType)}</span>
         </div>
       ))}
     </div>
@@ -52,45 +63,60 @@ export default function DashboardPage() {
   const [activeTest, setActiveTest] = useState<TestType>('Sprint')
   const [view, setView] = useState<'leaderboard' | 'changes'>('leaderboard')
   const [selectedTeams, setSelectedTeams] = useState<string[]>([...TEAMS])
-  const [selectedYear, setSelectedYear] = useState<number | null>(null)
-  const [selectedMonths, setSelectedMonths] = useState<string[]>([...SEASON_MONTHS])
+  const [activeSeason, setActiveSeason] = useState('2025-2026 In-Season')
 
   useEffect(() => {
     Promise.all([fetch('/api/athletes').then(r => r.json()), fetch('/api/entries').then(r => r.json())])
       .then(([a, e]) => { setAthletes(a); setEntries(e); setLoading(false) })
   }, [])
 
-  const availableYears = useMemo(() => [...new Set(entries.map(e => e.year))].sort().reverse(), [entries])
+  const currentSeason = useMemo(() => SEASONS.find(s => s.label === activeSeason) || SEASONS[6], [activeSeason])
 
   const filteredEntries = useMemo(() => entries.filter(e => {
     if (selectedTeams.length > 0 && !selectedTeams.includes(e.team)) return false
-    if (selectedYear && e.year !== selectedYear) return false
-    if (selectedMonths.length > 0 && !selectedMonths.includes(e.month)) return false
+    if (!currentSeason.years.includes(e.year)) return false
+    if (!currentSeason.months.includes(e.month)) return false
+    // For in-season spanning two years, make sure months match the right year
+    // Sep/Oct/Nov/Dec belong to first year, Jan/Feb/Mar belong to second year
+    if (currentSeason.years.length === 2) {
+      const fallMonths = ['September','October','November','December']
+      const springMonths = ['January','February','March']
+      if (fallMonths.includes(e.month) && e.year !== currentSeason.years[0]) return false
+      if (springMonths.includes(e.month) && e.year !== currentSeason.years[1]) return false
+    }
     return true
-  }), [entries, selectedTeams, selectedYear, selectedMonths])
+  }), [entries, selectedTeams, currentSeason])
 
   const filteredAthletes = useMemo(() => selectedTeams.length === 0 ? athletes : athletes.filter(a => selectedTeams.includes(a.team)), [athletes, selectedTeams])
+
+  const topChanges = useMemo(() => getTopChanges(filteredEntries, filteredAthletes, activeTest, 50), [filteredEntries, filteredAthletes, activeTest])
 
   function toggleTeam(team: string) {
     setSelectedTeams(prev => prev.includes(team) ? prev.filter(t => t !== team) : [...prev, team])
   }
-  function toggleMonth(month: string) {
-    setSelectedMonths(prev => prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month])
-  }
 
-  const topChanges = useMemo(() => getTopChanges(filteredEntries, filteredAthletes, activeTest, 50), [filteredEntries, filteredAthletes, activeTest])
+  // Only show seasons that have data
+  const seasonsWithData = useMemo(() => {
+    return SEASONS.filter(s => {
+      return entries.some(e => {
+        if (!s.years.includes(e.year)) return false
+        if (!s.months.includes(e.month)) return false
+        return true
+      })
+    })
+  }, [entries])
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ width: '32px', height: '32px', border: '2px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+        <div style={{ width: '32px', height: '32px', border: '2px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 12px' }} />
         <p style={{ color: '#475569', fontSize: '13px' }}>Loading combine data...</p>
       </div>
     </div>
   )
 
   return (
-    <div style={{ padding: '0 0 48px' }}>
+    <div style={{ paddingBottom: '48px' }}>
       {/* Header */}
       <div style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', padding: '24px 0 20px', marginBottom: '24px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
@@ -112,8 +138,24 @@ export default function DashboardPage() {
 
       {/* Filters */}
       <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '20px', marginBottom: '24px' }}>
+        
+        {/* Season selector */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-display)', marginBottom: '10px' }}>Season</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {SEASONS.map(s => {
+              const hasData = seasonsWithData.some(sd => sd.label === s.label)
+              return (
+                <button key={s.label} onClick={() => setActiveSeason(s.label)} style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: hasData ? 'pointer' : 'default', transition: 'all 0.15s', background: activeSeason === s.label ? 'rgba(59,130,246,0.2)' : hasData ? 'rgba(255,255,255,0.03)' : 'transparent', border: `1px solid ${activeSeason === s.label ? 'rgba(59,130,246,0.5)' : hasData ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.05)'}`, color: activeSeason === s.label ? '#60a5fa' : hasData ? '#94a3b8' : '#1e3a5f', opacity: hasData ? 1 : 0.4 }}>
+                  {s.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {/* Teams */}
-        <div style={{ marginBottom: '16px' }}>
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
             <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-display)' }}>Teams</span>
             <div style={{ display: 'flex', gap: '12px' }}>
@@ -129,37 +171,17 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+      </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          {/* Year */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-display)', marginBottom: '8px' }}>Year</label>
-            <select value={selectedYear ?? ''} onChange={e => setSelectedYear(e.target.value ? parseInt(e.target.value) : null)} className="kmha-select w-full">
-              <option value="">All Years</option>
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          {/* Season preset */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-display)', marginBottom: '8px' }}>Season</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => setSelectedMonths([...SEASON_MONTHS])} style={{ flex: 1, padding: '8px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s', background: selectedMonths.length === SEASON_MONTHS.length && SEASON_MONTHS.every(m => selectedMonths.includes(m)) ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${selectedMonths.length === SEASON_MONTHS.length && SEASON_MONTHS.every(m => selectedMonths.includes(m)) ? 'rgba(52,211,153,0.4)' : 'rgba(59,130,246,0.1)'}`, color: selectedMonths.length === SEASON_MONTHS.length && SEASON_MONTHS.every(m => selectedMonths.includes(m)) ? '#34d399' : '#475569' }}>In-Season</button>
-              <button onClick={() => setSelectedMonths(['May','June','July','August'])} style={{ flex: 1, padding: '8px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(59,130,246,0.1)', color: '#475569' }}>Off-Season</button>
-            </div>
-          </div>
-        </div>
-
-        {/* Months */}
-        <div style={{ marginTop: '16px' }}>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-display)', marginBottom: '8px' }}>Months</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            {ALL_MONTHS_LIST.map(month => (
-              <button key={month} onClick={() => toggleMonth(month)} style={{ padding: '3px 10px', borderRadius: '4px', fontSize: '11px', fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s', background: selectedMonths.includes(month) ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${selectedMonths.includes(month) ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`, color: selectedMonths.includes(month) ? '#60a5fa' : '#334155' }}>
-                {month.slice(0, 3)}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Active season info */}
+      <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '8px', padding: '10px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ color: '#3b82f6', fontSize: '12px' }}>📅</span>
+        <span style={{ color: '#64748b', fontSize: '12px' }}>
+          <strong style={{ color: '#60a5fa' }}>{activeSeason}</strong>
+          {' · '}
+          {currentSeason.months.join(', ')}
+          {currentSeason.years.length === 2 ? ` (${currentSeason.years[0]}–${currentSeason.years[1]})` : ` (${currentSeason.years[0]})`}
+        </span>
       </div>
 
       {/* Test tabs */}
@@ -197,14 +219,14 @@ export default function DashboardPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Athlete', 'Team', 'Start', 'Latest', 'Improvement'].map(h => (
+                  {['Athlete','Team','Start','Latest','Improvement'].map(h => (
                     <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Athlete' ? 'left' : 'right', fontSize: '11px', fontWeight: 600, color: '#334155', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-display)', borderBottom: '1px solid rgba(59,130,246,0.08)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {topChanges.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#334155', fontSize: '13px' }}>No improvement data available</td></tr>}
-                {[...topChanges].sort((a, b) => a.athlete.last_name.localeCompare(b.athlete.last_name)).map((c, i) => (
+                {topChanges.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#334155', fontSize: '13px' }}>No improvement data for this season</td></tr>}
+                {[...topChanges].sort((a,b) => a.athlete.last_name.localeCompare(b.athlete.last_name)).map((c,i) => (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(59,130,246,0.05)' }}>
                     <td style={{ padding: '10px 16px', color: '#e2e8f0', fontSize: '13px', fontWeight: 500 }}>{c.athlete.last_name}, {c.athlete.first_name}</td>
                     <td style={{ padding: '10px 16px', textAlign: 'right' }}><span style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: '#60a5fa', borderRadius: '3px', padding: '1px 6px', fontSize: '10px', fontFamily: 'var(--font-display)', fontWeight: 600 }}>{c.athlete.team}</span></td>
