@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const month = searchParams.get('month')
   const athleteId = searchParams.get('athlete_id')
 
-  let query = supabase.from('combine_entries').select('*').order('year').order('month')
+  let query = supabase.from('combine_entries').select('*').order('year').order('month').limit(10000)
 
   if (team) {
     const teams = team.split(',')
