@@ -1,18 +1,17 @@
 'use client'
-
 import { createClient } from '@/lib/supabase/client'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { useState } from 'react'
 
 export default function Navbar() {
-  const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    router.push('/auth/login')
-    router.refresh()
+    window.location.href = '/auth/login'
   }
 
   const links = [
@@ -22,64 +21,63 @@ export default function Navbar() {
     { href: '/import', label: 'Import CSV' },
   ]
 
+  const linkStyle = (href: string) => ({
+    padding: '6px 14px',
+    borderRadius: '6px',
+    fontSize: '13px',
+    fontWeight: 500,
+    textDecoration: 'none',
+    fontFamily: 'var(--font-display)',
+    letterSpacing: '0.04em',
+    transition: 'all 0.15s',
+    color: pathname === href || pathname?.startsWith(href + '/') ? '#60a5fa' : '#64748b',
+    background: pathname === href || pathname?.startsWith(href + '/') ? 'rgba(59,130,246,0.1)' : 'transparent',
+    border: `1px solid ${pathname === href ? 'rgba(59,130,246,0.3)' : 'transparent'}`,
+    display: 'block',
+  })
+
   return (
-    <nav className="rink-line sticky top-0 z-40" style={{ background: 'rgba(10,15,30,0.95)', backdropFilter: 'blur(8px)' }}>
-      <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
-        {/* Logo */}
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded flex items-center justify-center"
-            style={{ background: 'rgba(14,165,233,0.15)', border: '1px solid rgba(14,165,233,0.3)' }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1L8.8 5H13L9.5 7.5L10.8 12L7 9.5L3.2 12L4.5 7.5L1 5H5.2L7 1Z"
-                fill="#0ea5e9" />
-            </svg>
+    <nav style={{ background:'rgba(2,11,24,0.95)', borderBottom:'1px solid rgba(59,130,246,0.15)', backdropFilter:'blur(12px)', position:'sticky', top:0, zIndex:40 }}>
+      <div style={{ maxWidth:'1280px', margin:'0 auto', padding:'0 16px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'56px' }}>
+        <Link href="/dashboard" style={{ display:'flex', alignItems:'center', gap:'10px', textDecoration:'none' }}>
+          <div style={{ width:'32px', height:'32px', borderRadius:'8px', background:'linear-gradient(135deg,#1d4ed8,#2563eb)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 12px rgba(37,99,235,0.4)', flexShrink:0 }}>
+            <img src="/logo.jpg" alt="KMHA" style={{ width:'28px', height:'28px', borderRadius:'6px', objectFit:'cover' }} />
           </div>
-          <span className="font-display font-bold text-lg tracking-widest text-white">KMHA</span>
-          <span className="hidden sm:block text-xs" style={{ color: '#64748b', letterSpacing: '0.08em' }}>COMBINE</span>
+          <span style={{ color:'white', fontWeight:700, fontSize:'15px', letterSpacing:'0.1em', fontFamily:'var(--font-display)' }}>KMHA</span>
         </Link>
 
-        {/* Nav links */}
-        <div className="hidden md:flex items-center gap-1">
-          {links.map(link => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="px-3 py-1.5 rounded text-sm font-medium transition-colors"
-              style={{
-                color: pathname === link.href ? '#0ea5e9' : '#94a3b8',
-                background: pathname === link.href ? 'rgba(14,165,233,0.1)' : 'transparent',
-                fontFamily: 'var(--font-display)',
-                letterSpacing: '0.04em',
-              }}
-            >
-              {link.label}
-            </Link>
-          ))}
+        {/* Desktop nav */}
+        <div style={{ display:'flex', alignItems:'center', gap:'4px' }} className="hidden-mobile">
+          {links.map(link => <Link key={link.href} href={link.href} style={linkStyle(link.href)}>{link.label}</Link>)}
+          <button onClick={handleLogout} style={{ marginLeft:'8px', padding:'6px 14px', borderRadius:'6px', fontSize:'13px', background:'transparent', border:'1px solid rgba(59,130,246,0.2)', color:'#475569', cursor:'pointer', fontFamily:'var(--font-display)' }}>Sign Out</button>
         </div>
 
-        {/* Logout */}
-        <button onClick={handleLogout} className="kmha-btn-ghost text-xs py-1.5 px-3">
-          Sign Out
+        {/* Mobile hamburger */}
+        <button onClick={() => setMenuOpen(!menuOpen)} style={{ display:'none', background:'none', border:'none', color:'#64748b', cursor:'pointer', fontSize:'20px', padding:'4px' }} className="show-mobile">
+          {menuOpen ? '✕' : '☰'}
         </button>
       </div>
 
-      {/* Mobile nav */}
-      <div className="md:hidden flex gap-1 px-4 pb-2 overflow-x-auto">
-        {links.map(link => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="whitespace-nowrap px-3 py-1 rounded text-xs font-medium"
-            style={{
-              color: pathname === link.href ? '#0ea5e9' : '#64748b',
-              background: pathname === link.href ? 'rgba(14,165,233,0.1)' : 'transparent',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {link.label}
-          </Link>
-        ))}
-      </div>
+      {/* Mobile menu */}
+      {menuOpen && (
+        <div style={{ background:'rgba(2,11,24,0.98)', borderTop:'1px solid rgba(59,130,246,0.1)', padding:'12px 16px' }} className="show-mobile">
+          {links.map(link => (
+            <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} style={{ ...linkStyle(link.href), padding:'10px 14px', marginBottom:'4px' }}>{link.label}</Link>
+          ))}
+          <button onClick={handleLogout} style={{ width:'100%', marginTop:'8px', padding:'10px', borderRadius:'6px', fontSize:'13px', background:'transparent', border:'1px solid rgba(59,130,246,0.2)', color:'#475569', cursor:'pointer', textAlign:'left', fontFamily:'var(--font-display)' }}>Sign Out</button>
+        </div>
+      )}
+
+      <style>{`
+        @media (max-width: 640px) {
+          .hidden-mobile { display: none !important; }
+          .show-mobile { display: block !important; }
+        }
+        @media (min-width: 641px) {
+          .show-mobile { display: none !important; }
+          .hidden-mobile { display: flex !important; }
+        }
+      `}</style>
     </nav>
   )
 }
