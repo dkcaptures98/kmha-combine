@@ -52,9 +52,7 @@ export default function Navbar() {
     coach: [
       { href: '/dashboard', label: 'Dashboard' },
       { href: '/search', label: 'Search' },
-      { href: '/compare', label: 'Compare' },
       { href: '/schedule', label: 'Schedule' },
-      { href: '/attendance', label: 'Attendance' },
     ],
     entry_only: [
       { href: '/entry', label: 'Data Entry' },
