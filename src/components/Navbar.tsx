@@ -1,48 +1,73 @@
 'use client'
 import { createClient } from '@/lib/supabase/client'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { getUserPermissions, UserRole } from '@/lib/permissions'
 
 export default function Navbar() {
   const pathname = usePathname()
+  const router = useRouter()
   const supabase = createClient()
   const [menuOpen, setMenuOpen] = useState(false)
   const [role, setRole] = useState<UserRole | null>(null)
 
   useEffect(() => {
-    getUserPermissions().then(p => setRole(p.role))
-  }, [])
+    getUserPermissions().then(p => {
+      setRole(p.role)
+      if (p.role === 'entry_only' && pathname !== '/entry') {
+        router.replace('/entry')
+      }
+      if (p.role === 'coach' && pathname === '/entry') {
+        router.replace('/dashboard')
+      }
+    })
+  }, [pathname])
 
   async function handleLogout() {
     await supabase.auth.signOut()
     window.location.href = '/auth/login'
   }
 
-  // Links by role
-  const entryOnlyLinks = [
-    { href: '/entry', label: 'Data Entry' },
-  ]
+  const linksByRole: Record<string, { href: string; label: string }[]> = {
+    superadmin: [
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/entry', label: 'Data Entry' },
+      { href: '/search', label: 'Search' },
+      { href: '/compare', label: 'Compare' },
+      { href: '/athletes', label: 'Athletes' },
+      { href: '/import', label: 'Import CSV' },
+      { href: '/admin', label: 'Admin' },
+    ],
+    admin: [
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/entry', label: 'Data Entry' },
+      { href: '/search', label: 'Search' },
+      { href: '/compare', label: 'Compare' },
+      { href: '/athletes', label: 'Athletes' },
+      { href: '/import', label: 'Import CSV' },
+      { href: '/admin', label: 'Admin' },
+    ],
+    coach: [
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/search', label: 'Search' },
+      { href: '/compare', label: 'Compare' },
+    ],
+    entry_only: [
+      { href: '/entry', label: 'Data Entry' },
+    ],
+  }
 
-  const coachLinks = [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/entry', label: 'Data Entry' },
-    { href: '/search', label: 'Search' },
-    { href: '/compare', label: 'Compare' },
-  ]
+  const badgeMap: Record<string, { bg: string; border: string; color: string; label: string }> = {
+    superadmin: { bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.4)', color: '#f87171', label: 'SUPER ADMIN' },
+    admin:      { bg: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.3)', color: '#fbbf24', label: 'ADMIN' },
+    coach:      { bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.25)', color: '#60a5fa', label: 'COACH' },
+    entry_only: { bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)', color: '#34d399', label: 'ENTRY' },
+  }
 
-  const adminLinks = [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/entry', label: 'Data Entry' },
-    { href: '/search', label: 'Search' },
-    { href: '/compare', label: 'Compare' },
-    { href: '/athletes', label: 'Athletes' },
-    { href: '/import', label: 'Import CSV' },
-    { href: '/admin', label: 'Admin' },
-  ]
+  const links = role ? (linksByRole[role] || linksByRole.coach) : []
+  const badge = role ? badgeMap[role] : null
 
-  const links = role === 'admin' ? adminLinks : role === 'entry_only' ? entryOnlyLinks : coachLinks
   const isActive = (href: string) => pathname === href || (pathname?.startsWith(href) && href !== '/')
 
   const linkStyle = (href: string) => ({
@@ -53,12 +78,6 @@ export default function Navbar() {
     border: `1px solid ${isActive(href) ? 'rgba(59,130,246,0.3)' : 'transparent'}`,
     display: 'block', whiteSpace: 'nowrap' as const,
   })
-
-  const roleBadge = role === 'admin'
-    ? { bg: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.3)', color: '#fbbf24', label: 'ADMIN' }
-    : role === 'entry_only'
-    ? { bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)', color: '#34d399', label: 'ENTRY' }
-    : null
 
   return (
     <nav style={{ background: 'rgba(2,11,24,0.95)', borderBottom: '1px solid rgba(59,130,246,0.15)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 40 }}>
@@ -72,7 +91,7 @@ export default function Navbar() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1, justifyContent: 'center' }} className="hidden-mobile">
           {links.map(link => <Link key={link.href} href={link.href} style={linkStyle(link.href)}>{link.label}</Link>)}
-          {roleBadge && <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '9px', background: roleBadge.bg, border: `1px solid ${roleBadge.border}`, color: roleBadge.color, fontFamily: 'var(--font-display)', fontWeight: 600 }}>{roleBadge.label}</span>}
+          {badge && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '9px', background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, fontFamily: 'var(--font-display)', fontWeight: 600, letterSpacing: '0.04em' }}>{badge.label}</span>}
         </div>
 
         <button onClick={handleLogout} style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '12px', background: 'transparent', border: '1px solid rgba(59,130,246,0.2)', color: '#475569', cursor: 'pointer', fontFamily: 'var(--font-display)' }} className="hidden-mobile">Sign Out</button>
