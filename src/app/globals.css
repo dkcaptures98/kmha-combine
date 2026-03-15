@@ -163,3 +163,14 @@ body {
 .rank-1 { color: #fbbf24; }
 .rank-2 { color: #94a3b8; }
 .rank-3 { color: #b45309; }
+
+/* Light mode overrides */
+body.light-mode {
+  background: #f0f4f8;
+  color: #0f172a;
+}
+body.light-mode .kmha-card,
+body.light-mode [style*="rgba(10,20,40"] {
+  background: white !important;
+  border-color: rgba(59,130,246,0.2) !important;
+}
