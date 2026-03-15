@@ -15,12 +15,8 @@ export default function Navbar() {
   useEffect(() => {
     getUserPermissions().then(p => {
       setRole(p.role)
-      if (p.role === 'entry_only' && pathname !== '/entry' && pathname !== '/schedule') {
-        router.replace('/entry')
-      }
-      if (p.role === 'coach' && pathname === '/entry') {
-        router.replace('/dashboard')
-      }
+      if (p.role === 'entry_only' && pathname !== '/entry' && pathname !== '/schedule') router.replace('/entry')
+      if (p.role === 'coach' && pathname === '/entry') router.replace('/dashboard')
     })
   }, [pathname])
 
@@ -36,9 +32,11 @@ export default function Navbar() {
       { href: '/search', label: 'Search' },
       { href: '/compare', label: 'Compare' },
       { href: '/schedule', label: 'Schedule' },
+      { href: '/attendance', label: 'Attendance' },
       { href: '/athletes', label: 'Athletes' },
-      { href: '/import', label: 'Import CSV' },
+      { href: '/import', label: 'Import' },
       { href: '/admin', label: 'Admin' },
+      { href: '/audit', label: 'Audit Log' },
     ],
     admin: [
       { href: '/dashboard', label: 'Dashboard' },
@@ -46,8 +44,9 @@ export default function Navbar() {
       { href: '/search', label: 'Search' },
       { href: '/compare', label: 'Compare' },
       { href: '/schedule', label: 'Schedule' },
+      { href: '/attendance', label: 'Attendance' },
       { href: '/athletes', label: 'Athletes' },
-      { href: '/import', label: 'Import CSV' },
+      { href: '/import', label: 'Import' },
       { href: '/admin', label: 'Admin' },
     ],
     coach: [
@@ -55,6 +54,7 @@ export default function Navbar() {
       { href: '/search', label: 'Search' },
       { href: '/compare', label: 'Compare' },
       { href: '/schedule', label: 'Schedule' },
+      { href: '/attendance', label: 'Attendance' },
     ],
     entry_only: [
       { href: '/entry', label: 'Data Entry' },
@@ -74,8 +74,8 @@ export default function Navbar() {
   const isActive = (href: string) => pathname === href || (pathname?.startsWith(href) && href !== '/')
 
   const linkStyle = (href: string) => ({
-    padding: '5px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 500,
-    textDecoration: 'none', fontFamily: 'var(--font-display)', letterSpacing: '0.04em',
+    padding: '5px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 500,
+    textDecoration: 'none', fontFamily: 'var(--font-display)', letterSpacing: '0.03em',
     color: isActive(href) ? '#60a5fa' : '#64748b',
     background: isActive(href) ? 'rgba(59,130,246,0.1)' : 'transparent',
     border: `1px solid ${isActive(href) ? 'rgba(59,130,246,0.3)' : 'transparent'}`,
@@ -92,12 +92,12 @@ export default function Navbar() {
           <span style={{ color: 'white', fontWeight: 700, fontSize: '14px', letterSpacing: '0.1em', fontFamily: 'var(--font-display)' }}>KMHA</span>
         </Link>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1, justifyContent: 'center', overflowX: 'auto' }} className="hidden-mobile">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1px', flex: 1, justifyContent: 'center', overflowX: 'auto' }} className="hidden-mobile">
           {links.map(link => <Link key={link.href} href={link.href} style={linkStyle(link.href)}>{link.label}</Link>)}
-          {badge && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '9px', background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, fontFamily: 'var(--font-display)', fontWeight: 600, letterSpacing: '0.04em', flexShrink: 0 }}>{badge.label}</span>}
+          {badge && <span style={{ marginLeft: '4px', padding: '2px 6px', borderRadius: '4px', fontSize: '9px', background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, fontFamily: 'var(--font-display)', fontWeight: 600, flexShrink: 0 }}>{badge.label}</span>}
         </div>
 
-        <button onClick={handleLogout} style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '12px', background: 'transparent', border: '1px solid rgba(59,130,246,0.2)', color: '#475569', cursor: 'pointer', fontFamily: 'var(--font-display)', flexShrink: 0 }} className="hidden-mobile">Sign Out</button>
+        <button onClick={handleLogout} style={{ padding: '5px 10px', borderRadius: '6px', fontSize: '11px', background: 'transparent', border: '1px solid rgba(59,130,246,0.2)', color: '#475569', cursor: 'pointer', fontFamily: 'var(--font-display)', flexShrink: 0 }} className="hidden-mobile">Sign Out</button>
         <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '20px', padding: '4px', display: 'none' }} className="show-mobile">
           {menuOpen ? '✕' : '☰'}
         </button>
