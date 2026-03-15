@@ -7,6 +7,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [msLoading, setMsLoading] = useState(false)
   const [error, setError] = useState('')
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
@@ -16,6 +17,18 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError('Invalid email or password.'); setLoading(false) }
     else { window.location.href = '/dashboard' }
+  }
+  async function handleMicrosoftLogin() {
+    setMsLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: {
+        scopes: 'email',
+        redirectTo: `${window.location.origin}/dashboard`,
+      }
+    })
+    if (error) { setError(error.message); setMsLoading(false) }
   }
   async function handleForgot(e: React.FormEvent) {
     e.preventDefault(); setLoading(true)
@@ -33,7 +46,7 @@ export default function LoginPage() {
       <div style={{ width:'100%', maxWidth:'400px', position:'relative' }}>
         <div style={{ textAlign:'center', marginBottom:'32px' }}>
           <div style={{ display:'flex', justifyContent:'center', marginBottom:'16px' }}>
-            <img src="/logo.jpg" alt="KMHA Logo" style={{ width:'120px', height:'120px', borderRadius:'20px', objectFit:'cover', boxShadow:'0 8px 32px rgba(0,0,0,0.5), 0 0 40px rgba(37,99,235,0.2)', display:'block' }} />
+            <img src="/logo.jpg" alt="KMHA Logo" style={{ width:'100px', height:'100px', borderRadius:'20px', objectFit:'cover', boxShadow:'0 8px 32px rgba(0,0,0,0.5), 0 0 40px rgba(37,99,235,0.2)', display:'block' }} />
           </div>
           <h1 style={{ color:'white', fontSize:'28px', fontWeight:700, letterSpacing:'0.12em', margin:0 }}>KMHA</h1>
           <p style={{ color:'#64748b', fontSize:'13px', margin:'4px 0 0', letterSpacing:'0.06em' }}>COMBINE PERFORMANCE TRACKER</p>
@@ -42,6 +55,26 @@ export default function LoginPage() {
           {view === 'login' && (
             <>
               <h2 style={{ color:'#e2e8f0', fontSize:'18px', fontWeight:600, margin:'0 0 24px', textAlign:'center' }}>Welcome back</h2>
+
+              {/* Microsoft SSO button */}
+              <button onClick={handleMicrosoftLogin} disabled={msLoading} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'10px', padding:'11px', borderRadius:'8px', fontSize:'14px', fontWeight:500, cursor: msLoading ? 'not-allowed' : 'pointer', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.15)', color:'white', marginBottom:'16px', opacity: msLoading ? 0.7 : 1, transition:'all 0.15s' }}
+                onMouseOver={e => { if (!msLoading) e.currentTarget.style.background='rgba(255,255,255,0.1)' }}
+                onMouseOut={e => e.currentTarget.style.background='rgba(255,255,255,0.05)'}>
+                <svg width="18" height="18" viewBox="0 0 21 21" fill="none">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                </svg>
+                {msLoading ? 'Redirecting...' : 'Sign in with Microsoft (UWaterloo)'}
+              </button>
+
+              <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'16px' }}>
+                <div style={{ flex:1, height:'1px', background:'rgba(59,130,246,0.15)' }} />
+                <span style={{ color:'#334155', fontSize:'12px' }}>or</span>
+                <div style={{ flex:1, height:'1px', background:'rgba(59,130,246,0.15)' }} />
+              </div>
+
               <form onSubmit={handleLogin}>
                 <div style={{ marginBottom:'16px' }}>
                   <label style={{ display:'block', color:'#94a3b8', fontSize:'12px', fontWeight:500, marginBottom:'8px', letterSpacing:'0.06em', textTransform:'uppercase' }}>Email</label>
