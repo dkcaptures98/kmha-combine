@@ -11,9 +11,15 @@ function getAdminClient() {
 
 export async function GET() {
   const admin = getAdminClient()
-  const { data, error } = await admin.auth.admin.listUsers()
+  const { data: usersData, error } = await admin.auth.admin.listUsers()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data.users)
+  const { data: perms } = await admin.from('user_permissions').select('*')
+  const users = usersData.users.map(u => ({
+    id: u.id, email: u.email, created_at: u.created_at,
+    last_sign_in_at: u.last_sign_in_at, email_confirmed_at: u.email_confirmed_at,
+    teams: perms?.find((p: any) => p.user_id === u.id)?.teams || null
+  }))
+  return NextResponse.json(users)
 }
 
 export async function POST(request: Request) {
@@ -24,6 +30,16 @@ export async function POST(request: Request) {
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
+}
+
+export async function PUT(request: Request) {
+  const { user_id, teams } = await request.json()
+  const admin = getAdminClient()
+  const { error } = await admin.from('user_permissions').upsert(
+    { user_id, teams }, { onConflict: 'user_id' }
+  )
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
 }
 
 export async function DELETE(request: Request) {
