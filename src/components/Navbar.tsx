@@ -4,9 +4,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
-const ADMIN_EMAILS = [
-  'd423kim@uwaterloo.ca',
-]
+const ADMIN_EMAILS = ['d423kim@uwaterloo.ca']
 
 export default function Navbar() {
   const pathname = usePathname()
@@ -19,8 +17,7 @@ export default function Navbar() {
     const saved = localStorage.getItem('kmha-theme')
     if (saved === 'light') {
       setDarkMode(false)
-      document.body.style.background = '#f0f4f8'
-      document.body.style.color = '#0f172a'
+      document.body.classList.add('light')
     }
     supabase.auth.getUser().then(({ data }) => {
       if (data.user && ADMIN_EMAILS.includes(data.user.email || '')) setIsAdmin(true)
@@ -31,8 +28,7 @@ export default function Navbar() {
     const next = !darkMode
     setDarkMode(next)
     localStorage.setItem('kmha-theme', next ? 'dark' : 'light')
-    document.body.style.background = next ? '#020b18' : '#f0f4f8'
-    document.body.style.color = next ? '#f0f4f8' : '#0f172a'
+    document.body.classList.toggle('light', !next)
   }
 
   async function handleLogout() {

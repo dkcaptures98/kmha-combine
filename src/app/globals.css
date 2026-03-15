@@ -174,3 +174,16 @@ body.light-mode [style*="rgba(10,20,40"] {
   background: white !important;
   border-color: rgba(59,130,246,0.2) !important;
 }
+
+body.light {
+  background: #f0f4f8 !important;
+  color: #0f172a !important;
+}
+body.light .kmha-card { background: white !important; border-color: #e2e8f0 !important; }
+body.light nav { background: rgba(240,244,248,0.95) !important; border-color: #e2e8f0 !important; }
+
+body.light { background: #f0f4f8 !important; color: #0f172a !important; }
+body.light .kmha-card { background: white !important; border-color: #e2e8f0 !important; }
+body.light nav { background: rgba(240,244,248,0.95) !important; border-color: #e2e8f0 !important; }
+body.light .kmha-input { background: white !important; border-color: #cbd5e1 !important; color: #0f172a !important; }
+body.light .kmha-select { background: white !important; border-color: #cbd5e1 !important; color: #0f172a !important; }
