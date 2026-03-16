@@ -16,7 +16,7 @@ export default function EntryPage() {
   const [entryIds, setEntryIds] = useState<Record<string, string>>({})
   const [saveStatus, setSaveStatus] = useState<Record<string, 'saving'|'saved'|'deleted'|''>>({})
   const [role, setRole] = useState<UserRole | null>(null)
-  const [scheduledTest, setScheduledTest] = useState<string | null>(null)
+  const [scheduledTests, setScheduledTests] = useState<string[]>([])
   const [scheduleLoading, setScheduleLoading] = useState(true)
   const timers = useRef<Record<string, any>>({})
 
@@ -28,8 +28,10 @@ export default function EntryPage() {
       const monday = new Date(today)
       monday.setDate(today.getDate() - day + (day === 0 ? -6 : 1))
       monday.setHours(0,0,0,0)
-      const thisWeek = schedule.find(s => new Date(s.week_start + 'T00:00:00').toDateString() === monday.toDateString())
-      setScheduledTest(thisWeek?.test_type || null)
+      const thisWeekEntries = schedule.filter(s =>
+        new Date(s.week_start + 'T00:00:00').toDateString() === monday.toDateString()
+      )
+      setScheduledTests(thisWeekEntries.map(s => s.test_type))
       setScheduleLoading(false)
     })
   }, [])
@@ -60,8 +62,8 @@ export default function EntryPage() {
 
   function isLocked(test: TestType) {
     if (!isEntryOnly) return false
-    if (!scheduledTest) return true
-    return test !== scheduledTest
+    if (scheduledTests.length === 0) return true
+    return !scheduledTests.includes(test)
   }
 
   function setScore(athleteId: string, test: TestType, value: string, name: string, team: string) {
@@ -101,11 +103,16 @@ export default function EntryPage() {
         <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '13px' }}>Auto-saves as you type · Clear a field to delete that entry</p>
       </div>
 
+      {/* Schedule banner for entry_only */}
       {isEntryOnly && !scheduleLoading && (
-        <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: '10px', background: scheduledTest ? 'rgba(59,130,246,0.08)' : 'rgba(239,68,68,0.06)', border: `1px solid ${scheduledTest ? 'rgba(59,130,246,0.25)' : 'rgba(239,68,68,0.2)'}` }}>
-          {scheduledTest
-            ? <p style={{ margin: 0, fontSize: '13px', color: '#60a5fa' }}>📅 This week: <strong>{TEST_LABELS[scheduledTest as TestType]}</strong> — only this column is unlocked for entry</p>
-            : <p style={{ margin: 0, fontSize: '13px', color: '#f87171' }}>⚠️ No test scheduled this week — all columns are locked. Contact your admin.</p>}
+        <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: '10px', background: scheduledTests.length > 0 ? 'rgba(59,130,246,0.08)' : 'rgba(239,68,68,0.06)', border: `1px solid ${scheduledTests.length > 0 ? 'rgba(59,130,246,0.25)' : 'rgba(239,68,68,0.2)'}` }}>
+          {scheduledTests.length > 0
+            ? <p style={{ margin: 0, fontSize: '13px', color: '#60a5fa' }}>
+                📅 This week: <strong>{scheduledTests.map(t => TEST_LABELS[t as TestType]).join(', ')}</strong> — only these columns are unlocked
+              </p>
+            : <p style={{ margin: 0, fontSize: '13px', color: '#f87171' }}>
+                ⚠️ No tests scheduled this week — all columns are locked. Contact your admin.
+              </p>}
         </div>
       )}
 
@@ -190,7 +197,7 @@ export default function EntryPage() {
                                 textAlign: 'center' as const, outline: 'none',
                                 cursor: locked ? 'not-allowed' : 'text',
                               }}
-                              placeholder={locked ? '—' : '—'}
+                              placeholder="—"
                             />
                             {!locked && (
                               <span style={{ fontSize: '11px', width: '14px', color: status === 'saving' ? '#64748b' : status === 'saved' ? '#34d399' : status === 'deleted' ? '#f87171' : 'transparent' }}>
