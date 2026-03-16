@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { TEST_LABELS, TEST_UNITS, TestType, TEST_TYPES } from '@/types'
+import { TEST_LABELS, TestType, TEST_TYPES } from '@/types'
 import { getUserPermissions } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +28,13 @@ function getMonday(date: Date) {
   return d
 }
 
+function toDateInput(date: Date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 function getWeekLabel(dateStr: string) {
   const start = new Date(dateStr + 'T00:00:00')
   const end = new Date(start)
@@ -36,15 +43,13 @@ function getWeekLabel(dateStr: string) {
 }
 
 function isThisWeek(dateStr: string) {
-  const monday = getMonday(new Date())
-  return monday.toDateString() === new Date(dateStr + 'T00:00:00').toDateString()
+  return getMonday(new Date()).toDateString() === new Date(dateStr + 'T00:00:00').toDateString()
 }
 
 function isPast(dateStr: string) {
   return new Date(dateStr + 'T00:00:00') < getMonday(new Date())
 }
 
-// Group schedule entries by week
 function groupByWeek(entries: ScheduleEntry[]) {
   const map: Record<string, ScheduleEntry[]> = {}
   entries.forEach(e => {
@@ -59,7 +64,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [adding, setAdding] = useState(false)
-  const [newWeek, setNewWeek] = useState('')
+  const [newWeek, setNewWeek] = useState(toDateInput(getMonday(new Date())))
   const [selectedTests, setSelectedTests] = useState<string[]>([])
   const [newNotes, setNewNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -87,19 +92,21 @@ export default function SchedulePage() {
     e.preventDefault()
     if (!newWeek || !selectedTests.length) return
     setSaving(true)
-    const monday = getMonday(new Date(newWeek + 'T00:00:00'))
-    const weekStr = monday.toISOString().split('T')[0]
+    const monday = getMonday(new Date(newWeek + 'T12:00:00'))
+    const weekStr = toDateInput(monday)
 
-    // Save one entry per selected test
-    await Promise.all(selectedTests.map(test =>
-      fetch('/api/schedule', {
+    for (const test of selectedTests) {
+      await fetch('/api/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ week_start: weekStr, test_type: test, notes: newNotes })
       })
-    ))
+    }
 
-    setNewWeek(''); setNewNotes(''); setSelectedTests([]); setAdding(false); setSaving(false)
+    setNewNotes('')
+    setSelectedTests([])
+    setAdding(false)
+    setSaving(false)
     loadSchedule()
   }
 
@@ -111,9 +118,11 @@ export default function SchedulePage() {
   }
 
   const grouped = groupByWeek(schedule)
-  const upcoming = Object.entries(grouped).filter(([w]) => !isPast(w)).sort((a,b) => a[0].localeCompare(b[0]))
-  const past = Object.entries(grouped).filter(([w]) => isPast(w)).sort((a,b) => b[0].localeCompare(a[0]))
-  const thisWeekEntries = grouped[getMonday(new Date()).toISOString().split('T')[0]] || []
+  const upcoming = Object.entries(grouped).filter(([w]) => !isPast(w)).sort((a, b) => a[0].localeCompare(b[0]))
+  const past = Object.entries(grouped).filter(([w]) => isPast(w)).sort((a, b) => b[0].localeCompare(a[0]))
+  const thisWeekEntries = grouped[toDateInput(getMonday(new Date()))] || []
+
+  const inputStyle = { width: '100%', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'dark' as const }
 
   return (
     <div style={{ paddingBottom: '48px' }}>
@@ -132,8 +141,8 @@ export default function SchedulePage() {
       {/* This week banner */}
       {thisWeekEntries.length > 0 && (
         <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px' }}>
-          <p style={{ margin: '0 0 10px', fontSize: '11px', color: '#60a5fa', fontFamily: 'var(--font-display)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>THIS WEEK</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ margin: '0 0 10px', fontSize: '11px', color: '#60a5fa', fontFamily: 'var(--font-display)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>THIS WEEK — {getWeekLabel(toDateInput(getMonday(new Date())))}</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
             {thisWeekEntries.map(entry => {
               const c = TEST_COLORS[entry.test_type] || TEST_COLORS.Sprint
               return (
@@ -145,7 +154,6 @@ export default function SchedulePage() {
               )
             })}
           </div>
-          <p style={{ margin: '10px 0 0', fontSize: '12px', color: '#475569' }}>{getWeekLabel(getMonday(new Date()).toISOString().split('T')[0])}</p>
         </div>
       )}
 
@@ -160,24 +168,33 @@ export default function SchedulePage() {
         <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '10px', padding: '20px', marginBottom: '24px' }}>
           <h3 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 600, color: '#60a5fa', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>Schedule a Test Week</h3>
           <form onSubmit={handleAdd}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Week (any day)</label>
-                <input type="date" value={newWeek} onChange={e => setNewWeek(e.target.value)} required
-                  style={{ width: '100%', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' as const }} />
-                <p style={{ margin: '4px 0 0', fontSize: '10px', color: '#334155' }}>Snaps to Monday of that week</p>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Week</label>
+                <input
+                  type="date"
+                  value={newWeek}
+                  onChange={e => setNewWeek(e.target.value)}
+                  required
+                  style={inputStyle}
+                />
+                <p style={{ margin: '4px 0 0', fontSize: '10px', color: '#334155' }}>Snaps to Monday of selected week</p>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Notes (optional)</label>
-                <input type="text" value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="e.g. U14+ only"
-                  style={{ width: '100%', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' as const }} />
+                <input
+                  type="text"
+                  value={newNotes}
+                  onChange={e => setNewNotes(e.target.value)}
+                  placeholder="e.g. U14+ only, bring cones"
+                  style={inputStyle}
+                />
               </div>
             </div>
 
-            {/* Multi-test selector */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '10px' }}>
-                Tests This Week (select all that apply)
+                Tests This Week — select all that apply
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
                 {TEST_TYPES.map(test => {
@@ -190,18 +207,17 @@ export default function SchedulePage() {
                       background: sel ? c.bg : 'rgba(255,255,255,0.02)',
                       border: `1px solid ${sel ? c.border : 'rgba(59,130,246,0.1)'}`,
                       color: sel ? c.color : '#475569',
-                      transition: 'all 0.15s',
                     }}>
-                      {sel && '✓ '}{TEST_LABELS[test]}
+                      {sel ? '✓ ' : ''}{TEST_LABELS[test]}
                     </button>
                   )
                 })}
               </div>
-              {selectedTests.length === 0 && <p style={{ margin: '8px 0 0', fontSize: '11px', color: '#475569' }}>Select at least one test</p>}
             </div>
 
-            <button type="submit" disabled={saving || selectedTests.length === 0 || !newWeek} style={{ padding: '8px 20px', borderRadius: '6px', fontSize: '13px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: saving || selectedTests.length === 0 || !newWeek ? 'not-allowed' : 'pointer', background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', border: 'none', color: 'white', opacity: saving || selectedTests.length === 0 || !newWeek ? 0.5 : 1 }}>
-              {saving ? 'Saving...' : `Save ${selectedTests.length || ''} Test${selectedTests.length !== 1 ? 's' : ''} to Schedule`}
+            <button type="submit" disabled={saving || !selectedTests.length || !newWeek}
+              style={{ padding: '8px 20px', borderRadius: '6px', fontSize: '13px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: saving || !selectedTests.length || !newWeek ? 'not-allowed' : 'pointer', background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', border: 'none', color: 'white', opacity: saving || !selectedTests.length || !newWeek ? 0.5 : 1 }}>
+              {saving ? 'Saving...' : `Save ${selectedTests.length > 0 ? selectedTests.length : ''} Test${selectedTests.length !== 1 ? 's' : ''} to Schedule`}
             </button>
           </form>
         </div>
@@ -216,32 +232,28 @@ export default function SchedulePage() {
               const current = isThisWeek(weekStart)
               return (
                 <div key={weekStart} style={{ background: current ? 'rgba(59,130,246,0.06)' : 'rgba(10,20,40,0.8)', border: `1px solid ${current ? 'rgba(59,130,246,0.25)' : 'rgba(59,130,246,0.1)'}`, borderRadius: '10px', padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>{getWeekLabel(weekStart)}</p>
-                        {current && <span style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', borderRadius: '4px', padding: '1px 6px', fontSize: '9px', fontFamily: 'var(--font-display)', fontWeight: 600 }}>THIS WEEK</span>}
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
-                        {weekEntries.map(entry => {
-                          const c = TEST_COLORS[entry.test_type] || TEST_COLORS.Sprint
-                          return (
-                            <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.color, borderRadius: '6px', padding: '4px 10px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                                {TEST_LABELS[entry.test_type as TestType] || entry.test_type}
-                              </span>
-                              {isAdmin && (
-                                <button onClick={() => handleDelete(entry.id)} disabled={deletingId === entry.id} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171', borderRadius: '4px', padding: '3px 7px', fontSize: '10px', cursor: 'pointer' }}>
-                                  {deletingId === entry.id ? '...' : '✕'}
-                                </button>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                      {weekEntries[0]?.notes && <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#334155' }}>Note: {weekEntries[0].notes}</p>}
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>{getWeekLabel(weekStart)}</p>
+                    {current && <span style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', borderRadius: '4px', padding: '1px 6px', fontSize: '9px', fontFamily: 'var(--font-display)', fontWeight: 600 }}>THIS WEEK</span>}
                   </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
+                    {weekEntries.map(entry => {
+                      const c = TEST_COLORS[entry.test_type] || TEST_COLORS.Sprint
+                      return (
+                        <div key={entry.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.color, borderRadius: '6px', padding: '4px 10px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                            {TEST_LABELS[entry.test_type as TestType] || entry.test_type}
+                          </span>
+                          {isAdmin && (
+                            <button onClick={() => handleDelete(entry.id)} disabled={deletingId === entry.id} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171', borderRadius: '4px', padding: '3px 7px', fontSize: '10px', cursor: 'pointer' }}>
+                              {deletingId === entry.id ? '...' : '✕'}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {weekEntries[0]?.notes && <p style={{ margin: '8px 0 0', fontSize: '11px', color: '#334155' }}>Note: {weekEntries[0].notes}</p>}
                 </div>
               )
             })}
@@ -278,7 +290,7 @@ export default function SchedulePage() {
       {!loading && schedule.length === 0 && (
         <div style={{ textAlign: 'center', padding: '64px', color: '#334155' }}>
           <p style={{ fontSize: '48px', margin: '0 0 16px' }}>📅</p>
-          <p style={{ fontSize: '14px', margin: 0 }}>No tests scheduled yet{isAdmin ? ' — click + Add Week to get started' : ' — check back soon'}</p>
+          <p style={{ fontSize: '14px', margin: 0 }}>No tests scheduled yet{isAdmin ? ' — click + Add Week to get started' : ''}</p>
         </div>
       )}
     </div>
