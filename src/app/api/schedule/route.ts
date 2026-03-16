@@ -16,7 +16,11 @@ export async function POST(request: Request) {
   const body = await request.json()
   const { data, error } = await supabase
     .from('combine_schedule')
-    .upsert(body, { onConflict: 'week_start' })
+    .insert({ 
+      week_start: body.week_start, 
+      test_type: body.test_type, 
+      notes: body.notes || null 
+    })
     .select()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
