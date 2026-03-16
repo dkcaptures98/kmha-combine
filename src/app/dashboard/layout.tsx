@@ -1,10 +1,11 @@
 import Navbar from '@/components/Navbar'
-
+import InactivityLogout from '@/components/InactivityLogout'
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen" style={{ background: '#0a0f1e' }}>
+    <div className="min-h-screen" style={{ background: '#020b18' }}>
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <InactivityLogout />
+      <main style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 16px' }}>
         {children}
       </main>
     </div>
