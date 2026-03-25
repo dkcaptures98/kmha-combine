@@ -201,11 +201,20 @@ function TeamSection({ teamName, athletes, entries, season, showTitle = true }: 
             {TEST_TYPES.map(test => {
               const scores = tEntries.filter(e => e.test_type === test).map(e => e.score)
               const avg = scores.length ? scores.reduce((a,b) => a+b,0)/scores.length : null
+              const months = [...new Set(tEntries.filter(e => e.test_type === test).map(e => `${e.month}${e.year}`))].sort()
+              const firstScores = tEntries.filter(e => e.test_type === test && `${e.month}${e.year}` === months[0]).map(e => e.score)
+              const lastScores = tEntries.filter(e => e.test_type === test && `${e.month}${e.year}` === months[months.length-1]).map(e => e.score)
+              const firstAvg = firstScores.length ? firstScores.reduce((a,b)=>a+b,0)/firstScores.length : null
+              const lastAvg = lastScores.length ? lastScores.reduce((a,b)=>a+b,0)/lastScores.length : null
+              const change = firstAvg !== null && lastAvg !== null && months.length > 1 ? (test === 'Sprint' ? firstAvg - lastAvg : lastAvg - firstAvg) : null
               return (
                 <>
                   <td key={`${test}-avg1`} style={{ padding: '7px 8px', textAlign: 'center', color: '#64748b', fontSize: '11px' }}>—</td>
                   <td key={`${test}-avg2`} style={{ padding: '7px 8px', textAlign: 'center', fontWeight: 700, color: 'white', fontSize: '11px', borderRight: '1px solid #1e3a5f' }}>
                     {avg !== null ? formatScore(avg, test) : '—'}
+                    {change !== null && <div style={{ fontSize: '9px', color: change > 0 ? '#10b981' : '#ef4444', marginTop: '1px' }}>
+                      {change > 0 ? '▲' : '▼'} {Math.abs(change).toFixed(2)}
+                    </div>}
                   </td>
                 </>
               )

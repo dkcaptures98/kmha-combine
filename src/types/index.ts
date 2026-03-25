@@ -46,7 +46,7 @@ export const TEST_LABELS: Record<TestType, string> = {
   Sprint: '10m Sprint',
   Vertical: 'Vertical Jump',
   Chinups: 'Chin-ups (reps)',
-  ChinHold: 'Chin Hold (sec)',
+  ChinHold: 'Chin Hold',
   BroadJump: 'Broad Jump',
 }
 
@@ -55,7 +55,7 @@ export const TEST_UNITS: Record<TestType, string> = {
   Vertical: 'cm',
   Chinups: 'reps',
   ChinHold: 'sec',
-  BroadJump: 'ft',
+  BroadJump: "ft' in",
 }
 
 // Lower is better for Sprint, higher is better for everything else
