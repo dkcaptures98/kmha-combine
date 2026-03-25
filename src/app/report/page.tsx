@@ -209,7 +209,9 @@ function TeamSection({ teamName, athletes, entries, season, showTitle = true }: 
               const change = firstAvg !== null && lastAvg !== null && months.length > 1 ? (test === 'Sprint' ? firstAvg - lastAvg : lastAvg - firstAvg) : null
               return (
                 <>
-                  <td key={`${test}-avg1`} style={{ padding: '7px 8px', textAlign: 'center', color: '#64748b', fontSize: '11px' }}>—</td>
+                  <td key={`${test}-avg1`} style={{ padding: '7px 8px', textAlign: 'center', color: '#94a3b8', fontSize: '11px' }}>
+                    {firstAvg !== null ? formatScore(firstAvg, test) : '—'}
+                  </td>
                   <td key={`${test}-avg2`} style={{ padding: '7px 8px', textAlign: 'center', fontWeight: 700, color: 'white', fontSize: '11px', borderRight: '1px solid #1e3a5f' }}>
                     {avg !== null ? formatScore(avg, test) : '—'}
                     {change !== null && <div style={{ fontSize: '9px', color: change > 0 ? '#10b981' : '#ef4444', marginTop: '1px' }}>
