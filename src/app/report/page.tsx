@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CombineEntry, Athlete, TestType, TEST_TYPES, TEST_LABELS, TEST_UNITS, TEAMS } from '@/types'
-import { formatScore, broadJumpToInches, inchesToDisplay, avgBroadJump } from '@/lib/analytics'
+import { formatScore } from '@/lib/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,7 +60,7 @@ function LineChart({ data, color, lowerBetter }: { data: { label: string; value:
         return (
           <g key={t}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="#e2e8f0" strokeWidth="0.5" />
-            <text x={PAD.left - 4} y={y + 4} textAnchor="end" fontSize="8" fill="#94a3b8">{test === 'BroadJump' ? inchesToDisplay(val) : val.toFixed(1)}</text>
+            <text x={PAD.left - 4} y={y + 4} textAnchor="end" fontSize="8" fill="#94a3b8">{val.toFixed(1)}</text>
           </g>
         )
       })}
@@ -108,12 +108,7 @@ function TeamSection({ teamName, athletes, entries, season, showTitle = true }: 
       byMonth[key].push(e.score)
     })
     return Object.entries(byMonth)
-      .map(([label, scores]) => ({ 
-        label, 
-        value: test === 'BroadJump' 
-          ? scores.map(broadJumpToInches).reduce((a,b)=>a+b,0) / scores.length
-          : scores.reduce((a,b) => a+b,0) / scores.length 
-      }))
+      .map(([label, scores]) => ({ label, value: scores.reduce((a,b) => a+b,0) / scores.length }))
   }
 
   return (
@@ -204,55 +199,23 @@ function TeamSection({ teamName, athletes, entries, season, showTitle = true }: 
           <tr style={{ background: '#0f172a' }}>
             <td style={{ padding: '7px 12px', fontWeight: 700, fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', borderRight: '1px solid #1e3a5f' }}>Team Avg</td>
             {TEST_TYPES.map(test => {
-              const allScores = tEntries.filter(e => e.test_type === test).map(e => e.score)
+              const scores = tEntries.filter(e => e.test_type === test).map(e => e.score)
+              const avg = scores.length ? scores.reduce((a,b) => a+b,0)/scores.length : null
               const months = [...new Set(tEntries.filter(e => e.test_type === test).map(e => `${e.month}${e.year}`))].sort()
               const firstScores = tEntries.filter(e => e.test_type === test && `${e.month}${e.year}` === months[0]).map(e => e.score)
               const lastScores = tEntries.filter(e => e.test_type === test && `${e.month}${e.year}` === months[months.length-1]).map(e => e.score)
-
-              // For BroadJump: convert to inches before averaging
-              let avgDisplay: string | null = null
-              let firstAvgDisplay: string | null = null
-              let changeDisplay: string | null = null
-              let improved = false
-
-              if (test === 'BroadJump') {
-                if (allScores.length) avgDisplay = avgBroadJump(allScores)
-                if (firstScores.length) firstAvgDisplay = avgBroadJump(firstScores)
-                if (firstScores.length && lastScores.length && months.length > 1) {
-                  const firstIn = firstScores.map(broadJumpToInches).reduce((a,b)=>a+b,0)/firstScores.length
-                  const lastIn = lastScores.map(broadJumpToInches).reduce((a,b)=>a+b,0)/lastScores.length
-                  const diff = Math.abs(lastIn - firstIn)
-                  improved = lastIn > firstIn
-                  const diffFt = Math.floor(diff / 12)
-                  const diffIn = Math.round(diff % 12)
-                  changeDisplay = diffFt > 0 ? `${diffFt}' ${diffIn}"` : `${diffIn}"`
-                }
-              } else {
-                if (allScores.length) {
-                  const avg = allScores.reduce((a,b)=>a+b,0)/allScores.length
-                  avgDisplay = formatScore(avg, test)
-                }
-                if (firstScores.length) {
-                  const firstAvg = firstScores.reduce((a,b)=>a+b,0)/firstScores.length
-                  firstAvgDisplay = formatScore(firstAvg, test)
-                  if (lastScores.length && months.length > 1) {
-                    const lastAvg = lastScores.reduce((a,b)=>a+b,0)/lastScores.length
-                    const change = test === 'Sprint' ? firstAvg - lastAvg : lastAvg - firstAvg
-                    improved = change > 0
-                    changeDisplay = Math.abs(change).toFixed(2)
-                  }
-                }
-              }
-
+              const firstAvg = firstScores.length ? firstScores.reduce((a,b)=>a+b,0)/firstScores.length : null
+              const lastAvg = lastScores.length ? lastScores.reduce((a,b)=>a+b,0)/lastScores.length : null
+              const change = firstAvg !== null && lastAvg !== null && months.length > 1 ? (test === 'Sprint' ? firstAvg - lastAvg : lastAvg - firstAvg) : null
               return (
                 <>
                   <td key={`${test}-avg1`} style={{ padding: '7px 8px', textAlign: 'center', color: '#94a3b8', fontSize: '11px' }}>
-                    {firstAvgDisplay || '—'}
+                    {firstAvg !== null ? formatScore(firstAvg, test) : '—'}
                   </td>
                   <td key={`${test}-avg2`} style={{ padding: '7px 8px', textAlign: 'center', fontWeight: 700, color: 'white', fontSize: '11px', borderRight: '1px solid #1e3a5f' }}>
-                    {avgDisplay || '—'}
-                    {changeDisplay && <div style={{ fontSize: '9px', color: improved ? '#10b981' : '#ef4444', marginTop: '1px' }}>
-                      {improved ? '▲' : '▼'} {changeDisplay}
+                    {avg !== null ? formatScore(avg, test) : '—'}
+                    {change !== null && <div style={{ fontSize: '9px', color: change > 0 ? '#10b981' : '#ef4444', marginTop: '1px' }}>
+                      {change > 0 ? '▲' : '▼'} {Math.abs(change).toFixed(2)}
                     </div>}
                   </td>
                 </>
