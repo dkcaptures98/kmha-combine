@@ -147,22 +147,40 @@ export function getTopChanges(
     .slice(0, limit)
 }
 
+// Convert BroadJump score (stored as feet.inches like 5.11) to total inches
+export function broadJumpToInches(score: number): number {
+  const feet = Math.floor(score)
+  const inches = Math.round((score - feet) * 100)
+  return feet * 12 + inches
+}
+
+// Convert total inches back to display format
+export function inchesToDisplay(totalInches: number): string {
+  const feet = Math.floor(totalInches / 12)
+  const inches = Math.round(totalInches % 12)
+  return `${feet}' ${String(inches).padStart(2, '0')}"`
+}
+
 export function formatScore(score: number, testType: TestType): string {
   if (testType === 'BroadJump') {
     // Score stored as feet.inches e.g. 5.11 means 5 ft 11 in
-    // Need to handle averaged scores carefully
     const feet = Math.floor(score)
     const inches = Math.round((score - feet) * 100)
-    // If inches >= 12, carry over to feet
-    const totalInches = feet * 12 + inches
-    const realFeet = Math.floor(totalInches / 12)
-    const realInches = totalInches % 12
-    return `${realFeet}' ${String(realInches).padStart(2, '0')}"`
+    return `${feet}' ${String(inches).padStart(2, '0')}"`
   }
   if (testType === 'Sprint') return score.toFixed(2) + 's'
   if (testType === 'Vertical') return score.toFixed(1) + ' cm'
   if (testType === 'ChinHold') return score.toFixed(1) + 's'
+  if (testType === 'Chinups') return Math.round(score).toString()
   return score.toString()
+}
+
+// Use this when averaging BroadJump scores — convert to inches first, average, then display
+export function avgBroadJump(scores: number[]): string {
+  if (!scores.length) return '—'
+  const totalInches = scores.map(broadJumpToInches)
+  const avg = totalInches.reduce((a, b) => a + b, 0) / totalInches.length
+  return inchesToDisplay(avg)
 }
 
 export function formatChange(change: number, testType: TestType): string {
