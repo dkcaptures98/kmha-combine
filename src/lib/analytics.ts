@@ -150,8 +150,14 @@ export function getTopChanges(
 export function formatScore(score: number, testType: TestType): string {
   if (testType === 'BroadJump') {
     // Score stored as feet.inches e.g. 5.11 means 5 ft 11 in
-    const parts = score.toFixed(2).split('.')
-    return `${parts[0]}' ${parts[1] || '0'}"`
+    // Need to handle averaged scores carefully
+    const feet = Math.floor(score)
+    const inches = Math.round((score - feet) * 100)
+    // If inches >= 12, carry over to feet
+    const totalInches = feet * 12 + inches
+    const realFeet = Math.floor(totalInches / 12)
+    const realInches = totalInches % 12
+    return `${realFeet}' ${String(realInches).padStart(2, '0')}"`
   }
   if (testType === 'Sprint') return score.toFixed(2) + 's'
   if (testType === 'Vertical') return score.toFixed(1) + ' cm'

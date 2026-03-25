@@ -150,7 +150,7 @@ function TeamSection({ teamName, athletes, entries, season, showTitle = true }: 
             <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '2px solid #e2e8f0', borderRight: '1px solid #e2e8f0' }}>Athlete</th>
             {TEST_TYPES.map(test => (
               <th key={test} colSpan={2} style={{ padding: '7px 8px', textAlign: 'center', fontWeight: 700, color: '#475569', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '2px solid #e2e8f0', borderRight: '1px solid #e2e8f0' }}>
-                {TEST_LABELS[test].split(' ')[0]}
+                {test === 'ChinHold' ? 'Chin Hold' : test === 'BroadJump' ? 'Broad Jump' : TEST_LABELS[test].split(' ')[0]}
               </th>
             ))}
           </tr>
