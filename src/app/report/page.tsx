@@ -40,7 +40,7 @@ function getMonthLabel(entry: CombineEntry) {
 }
 
 // Simple SVG line chart
-function LineChart({ data, color, lowerBetter }: { data: { label: string; value: number }[]; color: string; lowerBetter?: boolean }) {
+function LineChart({ data, color, lowerBetter, isBroadJump }: { data: { label: string; value: number }[]; color: string; lowerBetter?: boolean; isBroadJump?: boolean }) {
   if (data.length < 2) return null
   const W = 400, H = 120, PAD = { top: 16, right: 20, bottom: 24, left: 40 }
   const vals = data.map(d => d.value)
@@ -60,7 +60,7 @@ function LineChart({ data, color, lowerBetter }: { data: { label: string; value:
         return (
           <g key={t}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="#e2e8f0" strokeWidth="0.5" />
-            <text x={PAD.left - 4} y={y + 4} textAnchor="end" fontSize="8" fill="#94a3b8">{test === 'BroadJump' ? inchesToDisplay(val) : val.toFixed(1)}</text>
+            <text x={PAD.left - 4} y={y + 4} textAnchor="end" fontSize="8" fill="#94a3b8">{isBroadJump ? inchesToDisplay(val) : val.toFixed(1)}</text>
           </g>
         )
       })}
@@ -139,7 +139,7 @@ function TeamSection({ teamName, athletes, entries, season, showTitle = true }: 
                   {TEST_LABELS[test]} ({TEST_UNITS[test]})
                 </p>
                 {timeline.length >= 2
-                  ? <LineChart data={timeline} color={color} lowerBetter={test === 'Sprint'} />
+                  ? <LineChart data={timeline} color={color} lowerBetter={test === 'Sprint'} isBroadJump={test === 'BroadJump'} />
                   : <p style={{ margin: 0, fontSize: '11px', color: '#cbd5e1', textAlign: 'center', padding: '20px 0' }}>Not enough data points</p>
                 }
               </div>
