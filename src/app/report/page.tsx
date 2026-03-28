@@ -107,7 +107,13 @@ function TeamSection({ teamName, athletes, entries, season, showTitle = true }: 
       if (!byMonth[key]) byMonth[key] = []
       byMonth[key].push(e.score)
     })
-    return Object.entries(byMonth)
+    const MORD2 = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug']
+    return Object.entries(byMonth).sort((a, b) => {
+        const aM = a[0].slice(0,3), bM = b[0].slice(0,3)
+        const aY = parseInt(a[0].slice(3)), bY = parseInt(b[0].slice(3))
+        if (aY !== bY) return aY - bY
+        return MORD2.indexOf(aM) - MORD2.indexOf(bM)
+      })
       .map(([label, scores]) => ({ 
         label, 
         value: test === 'BroadJump' 
@@ -205,7 +211,13 @@ function TeamSection({ teamName, athletes, entries, season, showTitle = true }: 
             <td style={{ padding: '7px 12px', fontWeight: 700, fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', borderRight: '1px solid #1e3a5f' }}>Team Avg</td>
             {TEST_TYPES.map(test => {
               const allScores = tEntries.filter(e => e.test_type === test).map(e => e.score)
-              const months = [...new Set(tEntries.filter(e => e.test_type === test).map(e => `${e.month}${e.year}`))].sort()
+              const months = [...new Set(tEntries.filter(e => e.test_type === test).map(e => `${e.month}${e.year}`))].sort((a, b) => {
+                const MORD = ['September','October','November','December','January','February','March','April','May','June','July','August']
+                const aMonth = a.replace(/[0-9]/g, ''), aYear = parseInt(a.replace(/[^0-9]/g, ''))
+                const bMonth = b.replace(/[0-9]/g, ''), bYear = parseInt(b.replace(/[^0-9]/g, ''))
+                if (aYear !== bYear) return aYear - bYear
+                return MORD.indexOf(aMonth) - MORD.indexOf(bMonth)
+              })
               const firstScores = tEntries.filter(e => e.test_type === test && `${e.month}${e.year}` === months[0]).map(e => e.score)
               const lastScores = tEntries.filter(e => e.test_type === test && `${e.month}${e.year}` === months[months.length-1]).map(e => e.score)
 
