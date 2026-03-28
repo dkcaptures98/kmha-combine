@@ -148,13 +148,20 @@ export function getTopChanges(
 }
 
 // Convert BroadJump score (stored as feet.inches like 5.11) to total inches
-export function broadJumpToInches(score: number): number {
+// Parse BroadJump score — handles 5.10 (5ft 10in) and 5.9 (5ft 9in) correctly
+export function parseBroadJump(score: number): { feet: number; inches: number } {
   const feet = Math.floor(score)
-  const inches = Math.round((score - feet) * 100)
+  const decimal = Math.round((score - feet) * 100)
+  // If decimal > 11, was entered as tenths (e.g. 5.9 = 5ft 9in not 5ft 90in)
+  const inches = decimal > 11 ? Math.round((score - feet) * 10) : decimal
+  return { feet, inches }
+}
+
+export function broadJumpToInches(score: number): number {
+  const { feet, inches } = parseBroadJump(score)
   return feet * 12 + inches
 }
 
-// Convert total inches back to display format
 export function inchesToDisplay(totalInches: number): string {
   const feet = Math.floor(totalInches / 12)
   const inches = Math.round(totalInches % 12)
@@ -163,9 +170,7 @@ export function inchesToDisplay(totalInches: number): string {
 
 export function formatScore(score: number, testType: TestType): string {
   if (testType === 'BroadJump') {
-    // Score stored as feet.inches e.g. 5.11 means 5 ft 11 in
-    const feet = Math.floor(score)
-    const inches = Math.round((score - feet) * 100)
+    const { feet, inches } = parseBroadJump(score)
     return `${feet}' ${String(inches).padStart(2, '0')}"`
   }
   if (testType === 'Sprint') return score.toFixed(2) + 's'
