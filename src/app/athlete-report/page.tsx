@@ -21,9 +21,9 @@ const COMPARISON_TEAM: Record<string, string> = {
   'U16AA': 'U16AAA',
   'U18AA': 'U18AAA',
   // LR teams compare to AALR (next level up for LR stream)
-  'U13AALR': 'U13AAA',
+  'U13AALR': 'U15ALR',
   'U15ALR':  'U15AALR',  // ALR compares to AALR
-  'U15AALR': 'U15AAA',   // AALR compares to AAA
+  'U15AALR': 'U18ALR',   // AALR compares to AAA
   'U18ALR':  'U18AAA',
 }
 
