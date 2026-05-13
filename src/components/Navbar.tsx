@@ -29,6 +29,7 @@ export default function Navbar() {
     superadmin: [
       { href: '/dashboard', label: 'Dashboard' },
       { href: '/entry', label: 'Data Entry' },
+      { href: '/combine', label: 'Annual Combine' },
       { href: '/search', label: 'Search' },
       { href: '/compare', label: 'Compare' },
       { href: '/schedule', label: 'Schedule' },
@@ -43,6 +44,7 @@ export default function Navbar() {
     admin: [
       { href: '/dashboard', label: 'Dashboard' },
       { href: '/entry', label: 'Data Entry' },
+      { href: '/combine', label: 'Annual Combine' },
       { href: '/search', label: 'Search' },
       { href: '/compare', label: 'Compare' },
       { href: '/schedule', label: 'Schedule' },
