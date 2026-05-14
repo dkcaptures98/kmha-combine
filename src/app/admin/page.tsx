@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
+
+const SUPER_ADMIN_EMAIL = 'd423kim@uwaterloo.ca'
 
 type AppUser = {
   id: string
@@ -13,12 +14,13 @@ type AppUser = {
   status?: string | null
   last_sign_in_at?: string | null
   created_at?: string | null
+  email_confirmed_at?: string | null
 }
 
 const roleCards = [
   {
-    title: 'SYSTEM ADMIN',
-    description: 'Full access — unrestricted control',
+    title: 'SUPER ADMIN',
+    description: 'Protected owner account — unrestricted control',
     color: '#f87171',
     bg: 'rgba(127,29,29,0.28)',
     border: 'rgba(248,113,113,0.18)',
@@ -46,29 +48,39 @@ const roleCards = [
   },
 ]
 
-function normalizeRole(role?: string | null) {
-  if (!role) return 'editor'
-  return role.toLowerCase()
+function isSuperAdmin(user: AppUser) {
+  return user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
 }
 
-function prettyRole(role?: string | null) {
-  const normalized = normalizeRole(role)
+function displayRole(user: AppUser) {
+  if (isSuperAdmin(user)) return 'Super Admin'
 
-  if (normalized === 'system_admin') return 'System Admin'
-  if (normalized === 'super_admin') return 'System Admin'
-  if (normalized === 'admin') return 'Admin'
-  if (normalized === 'coach') return 'Editor'
-  if (normalized === 'editor') return 'Editor'
-  if (normalized === 'read_only') return 'Read Only'
-  if (normalized === 'viewer') return 'Read Only'
+  const role = (user.role || 'coach').toLowerCase()
 
-  return role ? role.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Editor'
+  if (role === 'admin') return 'Admin'
+  if (role === 'coach') return 'Coach'
+  if (role === 'editor') return 'Coach'
+  if (role === 'read_only') return 'Read Only'
+  if (role === 'viewer') return 'Read Only'
+
+  return role.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-function roleBadgeStyle(role?: string | null) {
-  const normalized = normalizeRole(role)
+function apiRole(user: AppUser) {
+  if (isSuperAdmin(user)) return 'super_admin'
 
-  if (normalized === 'system_admin' || normalized === 'super_admin') {
+  const role = (user.role || 'coach').toLowerCase()
+
+  if (role === 'editor') return 'coach'
+  if (role === 'viewer') return 'read_only'
+
+  return role
+}
+
+function roleBadgeStyle(user: AppUser) {
+  const role = apiRole(user)
+
+  if (role === 'super_admin') {
     return {
       background: 'rgba(239,68,68,0.13)',
       border: '1px solid rgba(239,68,68,0.35)',
@@ -76,7 +88,7 @@ function roleBadgeStyle(role?: string | null) {
     }
   }
 
-  if (normalized === 'admin') {
+  if (role === 'admin') {
     return {
       background: 'rgba(245,158,11,0.13)',
       border: '1px solid rgba(245,158,11,0.35)',
@@ -84,7 +96,7 @@ function roleBadgeStyle(role?: string | null) {
     }
   }
 
-  if (normalized === 'read_only' || normalized === 'viewer') {
+  if (role === 'read_only') {
     return {
       background: 'rgba(52,211,153,0.13)',
       border: '1px solid rgba(52,211,153,0.35)',
@@ -93,9 +105,9 @@ function roleBadgeStyle(role?: string | null) {
   }
 
   return {
-    background: 'rgba(52,211,153,0.13)',
-    border: '1px solid rgba(52,211,153,0.35)',
-    color: '#34d399',
+    background: 'rgba(59,130,246,0.13)',
+    border: '1px solid rgba(59,130,246,0.35)',
+    color: '#60a5fa',
   }
 }
 
@@ -114,31 +126,22 @@ function formatDate(value?: string | null) {
 
 function formatTeams(teams?: string[] | string | null) {
   if (!teams) return 'All teams'
-
-  if (Array.isArray(teams)) {
-    return teams.length ? teams.join(', ') : 'All teams'
-  }
-
+  if (Array.isArray(teams)) return teams.length ? teams.join(', ') : 'All teams'
   return teams || 'All teams'
 }
 
-function normalizeUsers(payload: unknown): AppUser[] {
-  if (Array.isArray(payload)) return payload as AppUser[]
-
-  if (payload && typeof payload === 'object') {
-    const objectPayload = payload as Record<string, unknown>
-
-    if (Array.isArray(objectPayload.users)) return objectPayload.users as AppUser[]
-    if (Array.isArray(objectPayload.data)) return objectPayload.data as AppUser[]
-  }
-
-  return []
+function statusFor(user: AppUser) {
+  if (user.status) return user.status
+  return user.email_confirmed_at ? 'Active' : 'Invited'
 }
 
 export default function AdminPage() {
   const [email, setEmail] = useState('')
   const [users, setUsers] = useState<AppUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(true)
+  const [savingUserId, setSavingUserId] = useState<string | null>(null)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [draftRoles, setDraftRoles] = useState<Record<string, string>>({})
   const [inviting, setInviting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -148,28 +151,21 @@ export default function AdminPage() {
     setError('')
 
     try {
-      const apiResponse = await fetch('/api/admin/users', {
-        cache: 'no-store',
-      })
+      const response = await fetch('/api/admin/users', { cache: 'no-store' })
+      const payload = await response.json()
 
-      if (apiResponse.ok) {
-        const payload = await apiResponse.json()
-        const apiUsers = normalizeUsers(payload)
-
-        setUsers(apiUsers)
-        return
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Could not load users.')
       }
 
-      const supabase = createClient()
+      const loadedUsers = Array.isArray(payload) ? payload : payload.users || []
+      setUsers(loadedUsers)
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('id,email,role,teams,status,last_sign_in_at,created_at')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-
-      setUsers(data || [])
+      const nextDraftRoles: Record<string, string> = {}
+      loadedUsers.forEach((user: AppUser) => {
+        nextDraftRoles[user.id] = apiRole(user)
+      })
+      setDraftRoles(nextDraftRoles)
     } catch (err) {
       setUsers([])
       setError(err instanceof Error ? err.message : 'Could not load users.')
@@ -190,14 +186,17 @@ export default function AdminPage() {
     setError('')
 
     try {
-      const supabase = createClient()
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true },
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       })
 
-      if (error) throw error
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Something went wrong while sending the invite.')
+      }
 
       setMessage(`Invite sent to ${email}`)
       setEmail('')
@@ -206,6 +205,82 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : 'Something went wrong while sending the invite.')
     } finally {
       setInviting(false)
+    }
+  }
+
+  async function saveRole(user: AppUser) {
+    if (isSuperAdmin(user)) {
+      setError(`${SUPER_ADMIN_EMAIL} is the protected Super Admin account and cannot be changed.`)
+      return
+    }
+
+    const selectedRole = draftRoles[user.id] || apiRole(user)
+
+    if (selectedRole === 'super_admin') {
+      setError(`Only ${SUPER_ADMIN_EMAIL} can be Super Admin.`)
+      return
+    }
+
+    setSavingUserId(user.id)
+    setMessage('')
+    setError('')
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          role: selectedRole,
+          teams: Array.isArray(user.teams) ? user.teams : null,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Could not update user role.')
+      }
+
+      setMessage(`Updated ${user.email} to ${selectedRole.replaceAll('_', ' ')}.`)
+      await loadUsers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update user role.')
+    } finally {
+      setSavingUserId(null)
+    }
+  }
+
+  async function removeUser(user: AppUser) {
+    if (isSuperAdmin(user)) {
+      setError(`${SUPER_ADMIN_EMAIL} is the protected Super Admin account and cannot be removed.`)
+      return
+    }
+
+    const confirmed = window.confirm(`Remove ${user.email}? This will delete their account access.`)
+    if (!confirmed) return
+
+    setDeletingUserId(user.id)
+    setMessage('')
+    setError('')
+
+    try {
+      const response = await fetch(`/api/admin/users?id=${encodeURIComponent(user.id)}`, {
+        method: 'DELETE',
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Could not remove user.')
+      }
+
+      setMessage(`Removed ${user.email}.`)
+      await loadUsers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove user.')
+    } finally {
+      setDeletingUserId(null)
     }
   }
 
@@ -268,10 +343,27 @@ export default function AdminPage() {
         ))}
       </div>
 
+      {(message || error) && (
+        <div
+          style={{
+            maxWidth: '820px',
+            marginBottom: '16px',
+            background: error ? 'rgba(239,68,68,0.1)' : 'rgba(52,211,153,0.1)',
+            border: error ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(52,211,153,0.3)',
+            color: error ? '#f87171' : '#34d399',
+            borderRadius: '8px',
+            padding: '10px 14px',
+            fontSize: '13px',
+          }}
+        >
+          {error || `✓ ${message}`}
+        </div>
+      )}
+
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(260px, 360px) minmax(520px, 1fr)',
+          gridTemplateColumns: 'minmax(260px, 360px) minmax(620px, 1fr)',
           gap: '26px',
           alignItems: 'start',
         }}
@@ -356,38 +448,6 @@ export default function AdminPage() {
             >
               {inviting ? 'Sending...' : 'Send Invite'}
             </button>
-
-            {message && (
-              <div
-                style={{
-                  marginTop: '12px',
-                  background: 'rgba(52,211,153,0.1)',
-                  border: '1px solid rgba(52,211,153,0.3)',
-                  color: '#34d399',
-                  borderRadius: '6px',
-                  padding: '10px 12px',
-                  fontSize: '12px',
-                }}
-              >
-                ✓ {message}
-              </div>
-            )}
-
-            {error && (
-              <div
-                style={{
-                  marginTop: '12px',
-                  background: 'rgba(239,68,68,0.1)',
-                  border: '1px solid rgba(239,68,68,0.3)',
-                  color: '#f87171',
-                  borderRadius: '6px',
-                  padding: '10px 12px',
-                  fontSize: '12px',
-                }}
-              >
-                {error}
-              </div>
-            )}
           </form>
         </div>
 
@@ -484,7 +544,9 @@ export default function AdminPage() {
                   </tr>
                 ) : (
                   users.map(user => {
-                    const styles = roleBadgeStyle(user.role)
+                    const protectedUser = isSuperAdmin(user)
+                    const styles = roleBadgeStyle(user)
+                    const selectedRole = draftRoles[user.id] || apiRole(user)
 
                     return (
                       <tr key={user.id || user.email} style={{ borderBottom: '1px solid rgba(59,130,246,0.05)' }}>
@@ -493,22 +555,47 @@ export default function AdminPage() {
                         </td>
 
                         <td style={{ padding: '12px 14px' }}>
-                          <span
-                            style={{
-                              ...styles,
-                              borderRadius: '4px',
-                              padding: '3px 8px',
-                              fontSize: '9px',
-                              fontFamily: 'var(--font-display)',
-                              fontWeight: 700,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.04em',
-                              display: 'inline-block',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {prettyRole(user.role)}
-                          </span>
+                          {protectedUser ? (
+                            <span
+                              style={{
+                                ...styles,
+                                borderRadius: '4px',
+                                padding: '3px 8px',
+                                fontSize: '9px',
+                                fontFamily: 'var(--font-display)',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                                display: 'inline-block',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {displayRole(user)}
+                            </span>
+                          ) : (
+                            <select
+                              value={selectedRole}
+                              onChange={e => {
+                                const nextRole = e.target.value
+                                setDraftRoles(prev => ({ ...prev, [user.id]: nextRole }))
+                              }}
+                              style={{
+                                background: styles.background,
+                                border: styles.border,
+                                color: styles.color,
+                                borderRadius: '4px',
+                                padding: '5px 8px',
+                                fontSize: '10px',
+                                fontFamily: 'var(--font-display)',
+                                fontWeight: 700,
+                                outline: 'none',
+                              }}
+                            >
+                              <option value="admin">Admin</option>
+                              <option value="coach">Coach</option>
+                              <option value="read_only">Read Only</option>
+                            </select>
+                          )}
                         </td>
 
                         <td style={{ padding: '12px 14px', color: '#34d399', fontSize: '11px', whiteSpace: 'nowrap' }}>
@@ -534,16 +621,16 @@ export default function AdminPage() {
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {user.status || 'Active'}
+                            {statusFor(user)}
                           </span>
                         </td>
 
                         <td style={{ padding: '12px 14px' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '7px' }}>
-                            <a
-                              href="https://supabase.com/dashboard"
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              disabled={protectedUser || savingUserId === user.id}
+                              onClick={() => void saveRole(user)}
                               style={{
                                 padding: '5px 9px',
                                 borderRadius: '5px',
@@ -553,16 +640,17 @@ export default function AdminPage() {
                                 background: 'rgba(59,130,246,0.11)',
                                 border: '1px solid rgba(59,130,246,0.25)',
                                 color: '#60a5fa',
-                                textDecoration: 'none',
+                                cursor: protectedUser ? 'not-allowed' : 'pointer',
+                                opacity: protectedUser ? 0.45 : 1,
                               }}
                             >
-                              Edit
-                            </a>
+                              {savingUserId === user.id ? 'Saving...' : protectedUser ? 'Locked' : 'Save'}
+                            </button>
 
-                            <a
-                              href="https://supabase.com/dashboard"
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              disabled={protectedUser || deletingUserId === user.id}
+                              onClick={() => void removeUser(user)}
                               style={{
                                 padding: '5px 9px',
                                 borderRadius: '5px',
@@ -572,11 +660,12 @@ export default function AdminPage() {
                                 background: 'rgba(239,68,68,0.11)',
                                 border: '1px solid rgba(239,68,68,0.25)',
                                 color: '#f87171',
-                                textDecoration: 'none',
+                                cursor: protectedUser ? 'not-allowed' : 'pointer',
+                                opacity: protectedUser ? 0.45 : 1,
                               }}
                             >
-                              Remove
-                            </a>
+                              {deletingUserId === user.id ? 'Removing...' : 'Remove'}
+                            </button>
                           </div>
                         </td>
                       </tr>
