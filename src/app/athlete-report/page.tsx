@@ -200,6 +200,83 @@ function cleanBenchmarkLabel(label: string) {
   return label.replace(/U(\d+)AAA Average/g, 'U$1 Average')
 }
 
+
+function Sparkline({ entries, test, color }: { entries: CombineEntry[]; test: TestType; color: string }) {
+  const sorted = sortEntries(entries.filter(e => e.test_type === test && Number.isFinite(e.score)))
+
+  if (sorted.length < 2) {
+    return (
+      <div style={{ height: '72px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: '10px' }}>
+        Not enough data
+      </div>
+    )
+  }
+
+  const W = 260
+  const H = 78
+  const PAD = { top: 18, right: 18, bottom: 18, left: 34 }
+
+  const vals = sorted.map(e => e.score)
+  const rawMin = Math.min(...vals)
+  const rawMax = Math.max(...vals)
+  const rawRange = rawMax - rawMin || 1
+
+  const min = rawMin - rawRange * 0.18
+  const max = rawMax + rawRange * 0.18
+  const range = max - min || 1
+
+  const scaleX = (i: number) => PAD.left + (i / (sorted.length - 1)) * (W - PAD.left - PAD.right)
+  const scaleY = (v: number) => PAD.top + (1 - (v - min) / range) * (H - PAD.top - PAD.bottom)
+
+  const points = sorted.map((e, i) => `${scaleX(i)},${scaleY(e.score)}`).join(' ')
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '78px', overflow: 'visible' }}>
+      {[0, 0.5, 1].map(t => {
+        const v = min + t * range
+        const y = scaleY(v)
+
+        return (
+          <g key={t}>
+            <line
+              x1={PAD.left}
+              y1={y}
+              x2={W - PAD.right}
+              y2={y}
+              stroke="#e2e8f0"
+              strokeWidth="0.6"
+              strokeDasharray="3,3"
+            />
+            <text x={PAD.left - 4} y={y + 2.5} textAnchor="end" fontSize="7" fill="#94a3b8">
+              {test === 'BroadJump' ? inchesToDisplay(broadJumpToInches(v)) : v.toFixed(1)}
+            </text>
+          </g>
+        )
+      })}
+
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+
+      {sorted.map((e, i) => {
+        const x = scaleX(i)
+        const y = scaleY(e.score)
+
+        return (
+          <g key={`${e.month}-${e.year}-${i}`}>
+            <circle cx={x} cy={y} r="2.6" fill={color} />
+            <text x={x} y={y - 5} textAnchor="middle" fontSize="7" fontWeight="700" fill={color}>
+              {formatScore(e.score, test)}
+            </text>
+            <text x={x} y={H - 3} textAnchor="middle" fontSize="7" fill="#64748b">
+              {e.month.slice(0, 3)}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+
 function AthleteReportContent() {
   const params = useSearchParams()
   const athleteId = params.get('id')
@@ -495,8 +572,8 @@ function AthleteReportContent() {
               const first = getFirst(entries, test)
 
               return (
-                <div key={test} style={{ border: '1px solid #f1f5f9', borderRadius: '8px', padding: '14px', background: '#fafafa' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div key={test} style={{ border: '1px solid #f1f5f9', borderRadius: '8px', padding: '8px', background: '#fafafa' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
                     <p
                       style={{
                         margin: 0,
@@ -514,7 +591,7 @@ function AthleteReportContent() {
 
                   <Sparkline entries={entries} test={test} color={color} />
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '9px', color: '#94a3b8' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3px', fontSize: '9px', color: '#94a3b8' }}>
                     <span>
                       First:{' '}
                       <strong style={{ color: '#475569' }}>
