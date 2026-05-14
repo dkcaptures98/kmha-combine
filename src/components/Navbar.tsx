@@ -28,6 +28,7 @@ export default function Navbar() {
   const linksByRole: Record<string, { href: string; label: string }[]> = {
     superadmin: [
       { href: '/dashboard', label: 'Dashboard' },
+      { href: '/results', label: 'Results' },
       { href: '/entry', label: 'Data Entry' },
       { href: '/combine', label: 'Annual Combine' },
       { href: '/search', label: 'Search' },
@@ -43,6 +44,7 @@ export default function Navbar() {
     ],
     admin: [
       { href: '/dashboard', label: 'Dashboard' },
+      { href: '/results', label: 'Results' },
       { href: '/entry', label: 'Data Entry' },
       { href: '/combine', label: 'Annual Combine' },
       { href: '/search', label: 'Search' },
@@ -66,6 +68,7 @@ export default function Navbar() {
       { href: '/schedule', label: 'Schedule' },
 
       { href: '/dashboard', label: 'Dashboard' },
+      { href: '/results', label: 'Results' },
       { href: '/search', label: 'Search' },
       { href: '/schedule', label: 'Schedule' },
     ],
