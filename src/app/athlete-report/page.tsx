@@ -160,31 +160,6 @@ function getBenchmark(athleteTeam: string, allEntries: CombineEntry[], test: Tes
     : getStandardBenchmark(athleteTeam, allEntries, test)
 }
 
-function getDifferenceFromBenchmark(best: number, benchmarkAverage: number, test: TestType) {
-  if (test === 'Sprint') {
-    const diff = benchmarkAverage - best
-    return {
-      improved: diff > 0,
-      display: `${Math.abs(diff).toFixed(2)}s`,
-    }
-  }
-
-  if (test === 'BroadJump') {
-    const diff = broadJumpToInches(best) - broadJumpToInches(benchmarkAverage)
-    return {
-      improved: diff > 0,
-      display: `${Math.abs(diff).toFixed(1)}"`,
-    }
-  }
-
-  const diff = best - benchmarkAverage
-
-  return {
-    improved: diff > 0,
-    display: Math.abs(diff).toFixed(2),
-  }
-}
-
 function Sparkline({ entries, test, color }: { entries: CombineEntry[]; test: TestType; color: string }) {
   const sorted = sortEntries(entries.filter(e => e.test_type === test && Number.isFinite(e.score)))
 
@@ -272,9 +247,18 @@ function AthleteReportContent() {
       fetch(`/api/entries?athlete_id=${athleteId}`).then(r => r.json()),
       fetch('/api/entries').then(r => r.json()),
     ]).then(([athletes, athleteEntries, all]) => {
-      setAthlete(athletes.find((a: Athlete) => a.id === athleteId) || null)
-      setEntries(athleteEntries)
-      setAllEntries(all)
+      const safeAthletes = Array.isArray(athletes) ? athletes : []
+      const safeAthleteEntries = Array.isArray(athleteEntries) ? athleteEntries : []
+      const safeAllEntries = Array.isArray(all) ? all : []
+
+      setAthlete(safeAthletes.find((a: Athlete) => a.id === athleteId) || null)
+      setEntries(safeAthleteEntries)
+      setAllEntries(safeAllEntries)
+      setLoading(false)
+      setGenerated(new Date().toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' }))
+    }).catch(() => {
+      setEntries([])
+      setAllEntries([])
       setLoading(false)
       setGenerated(new Date().toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' }))
     })
