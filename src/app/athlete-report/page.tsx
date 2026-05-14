@@ -72,6 +72,137 @@ function getAverageForTeam(entries: CombineEntry[], team: string, test: TestType
   return scores.reduce((sum, score) => sum + score, 0) / scores.length
 }
 
+function getAverageForTeams(entries: CombineEntry[], teams: string[], test: TestType) {
+  const scores = entries
+    .filter(e => teams.includes(e.team) && e.test_type === test && Number.isFinite(e.score))
+    .map(e => e.score)
+
+  if (!scores.length) return null
+
+  return scores.reduce((sum, score) => sum + score, 0) / scores.length
+}
+
+function isStandardAgeTeam(team: string, age: number) {
+  return new RegExp(`^U${age}(A|AA|AAA)$`, 'i').test(team)
+}
+
+function getAvailableStandardTeamsForAge(entries: CombineEntry[], age: number, test: TestType) {
+  return Array.from(
+    new Set(
+      entries
+        .filter(e => isStandardAgeTeam(e.team, age) && e.test_type === test && Number.isFinite(e.score))
+        .map(e => e.team)
+    )
+  )
+}
+
+function getNextAvailableStandardAge(entries: CombineEntry[], age: number, test: TestType) {
+  const ages = Array.from(
+    new Set(
+      entries
+        .filter(e => !isLRTeam(e.team) && e.test_type === test && Number.isFinite(e.score))
+        .map(e => getTeamAge(e.team))
+        .filter((value): value is number => value !== null && value > age)
+    )
+  ).sort((a, b) => a - b)
+
+  return ages[0] ?? null
+}
+
+function getBenchmarkList(athleteTeam: string, allEntries: CombineEntry[], test: TestType) {
+  const athleteAge = getTeamAge(athleteTeam)
+  if (!athleteAge) return []
+
+  if (isLRTeam(athleteTeam)) {
+    const benchmarks: { label: string; average: number; sourceTeam: string }[] = []
+
+    const availableLRTeams = getAvailableTeamsForTest(allEntries, test)
+      .filter(team => isLRTeam(team))
+      .map(team => ({
+        team,
+        age: getTeamAge(team),
+      }))
+      .filter((item): item is { team: string; age: number } => item.age !== null)
+
+    const sameAgeHigherLR = availableLRTeams
+      .filter(item => item.age === athleteAge && item.team !== athleteTeam)
+      .sort((a, b) => {
+        const aIsHigher = /AALR/i.test(a.team) ? 1 : 0
+        const bIsHigher = /AALR/i.test(b.team) ? 1 : 0
+        return bIsHigher - aIsHigher
+      })
+
+    if (sameAgeHigherLR.length) {
+      const teams = sameAgeHigherLR.map(item => item.team)
+      const average = getAverageForTeams(allEntries, teams, test)
+
+      if (average !== null) {
+        benchmarks.push({
+          label: `U${athleteAge} LR Average`,
+          average,
+          sourceTeam: teams.join(', '),
+        })
+      }
+    }
+
+    const nextLRAge = Math.min(
+      ...availableLRTeams
+        .filter(item => item.age > athleteAge)
+        .map(item => item.age)
+    )
+
+    if (Number.isFinite(nextLRAge)) {
+      const teams = availableLRTeams
+        .filter(item => item.age === nextLRAge)
+        .map(item => item.team)
+
+      const average = getAverageForTeams(allEntries, teams, test)
+
+      if (average !== null) {
+        benchmarks.push({
+          label: `U${nextLRAge} LR Average`,
+          average,
+          sourceTeam: teams.join(', '),
+        })
+      }
+    }
+
+    return benchmarks
+  }
+
+  const benchmarks: { label: string; average: number; sourceTeam: string }[] = []
+
+  if (!isAAATeam(athleteTeam)) {
+    const sameAgeAAATeam = `U${athleteAge}AAA`
+    const sameAgeAAAAverage = getAverageForTeam(allEntries, sameAgeAAATeam, test)
+
+    if (sameAgeAAAAverage !== null) {
+      benchmarks.push({
+        label: `U${athleteAge} Average`,
+        average: sameAgeAAAAverage,
+        sourceTeam: sameAgeAAATeam,
+      })
+    }
+  }
+
+  const nextAge = getNextAvailableStandardAge(allEntries, athleteAge, test)
+
+  if (nextAge !== null) {
+    const nextAgeTeams = getAvailableStandardTeamsForAge(allEntries, nextAge, test)
+    const nextAgeAverage = getAverageForTeams(allEntries, nextAgeTeams, test)
+
+    if (nextAgeAverage !== null) {
+      benchmarks.push({
+        label: `U${nextAge} Average`,
+        average: nextAgeAverage,
+        sourceTeam: nextAgeTeams.join(', '),
+      })
+    }
+  }
+
+  return benchmarks
+}
+
 function getAvailableTeamsForTest(entries: CombineEntry[], test: TestType) {
   return Array.from(
     new Set(
@@ -165,9 +296,9 @@ function Sparkline({ entries, test, color }: { entries: CombineEntry[]; test: Te
 
   if (sorted.length < 2) return null
 
-  const W = 420
-  const H = 150
-  const PAD = { top: 34, right: 30, bottom: 34, left: 54 }
+  const W = 380
+  const H = 130
+  const PAD = { top: 30, right: 28, bottom: 30, left: 52 }
 
   const vals = sorted.map(e => e.score)
   const rawMin = Math.min(...vals)
@@ -411,7 +542,7 @@ function AthleteReportContent() {
         >
           {testsWithData.map((test, idx) => {
             const best = getBest(entries, test)
-            const benchmark = getBenchmark(athlete.team, allEntries, test)
+            const benchmarks = getBenchmarkList(athlete.team, allEntries, test)
             const color = TEST_COLORS[idx % TEST_COLORS.length]
 
             return (
@@ -443,29 +574,33 @@ function AthleteReportContent() {
                 </p>
 
                 <p style={{ margin: '0 0 8px', fontSize: '9px', color: '#94a3b8' }}>Personal Best</p>
+                {benchmarks.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'center' }}>
+                    {benchmarks.map(benchmark => (
+                      <div
+                        key={benchmark.label}
+                        style={{
+                          background: 'white',
+                          border: `1px solid ${color}30`,
+                          borderRadius: '5px',
+                          padding: '4px 7px',
+                          display: 'inline-block',
+                          minWidth: '92px',
+                        }}
+                      >
+                        <div style={{ fontSize: '8px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {benchmark.label}
+                        </div>
 
-                {benchmark && (
-                  <div
-                    style={{
-                      background: 'white',
-                      border: `1px solid ${color}30`,
-                      borderRadius: '5px',
-                      padding: '4px 7px',
-                      display: 'inline-block',
-                      minWidth: '92px',
-                    }}
-                  >
-                    <div style={{ fontSize: '8px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {benchmark.label}
-                    </div>
-
-                    <div style={{ fontSize: '11px', fontWeight: 700, color }}>
-                      {formatScore(benchmark.average, test)}
-                    </div>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color }}>
+                          {formatScore(benchmark.average, test)}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {!benchmark && (
+                {benchmarks.length === 0 && (
                   <div
                     style={{
                       background: 'white',
