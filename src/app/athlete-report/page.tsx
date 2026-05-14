@@ -462,13 +462,6 @@ function AthleteReportContent() {
                     <div style={{ fontSize: '11px', fontWeight: 700, color }}>
                       {formatScore(benchmark.average, test)}
                     </div>
-
-                    {comparison && (
-                      <div style={{ fontSize: '8px', color: comparison.improved ? '#059669' : '#dc2626', fontWeight: 600 }}>
-                        {comparison.improved ? 'Above by ' : 'Below by '}
-                        {comparison.display}
-                      </div>
-                    )}
                   </div>
                 )}
 
