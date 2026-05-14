@@ -14,9 +14,14 @@ export default function Navbar() {
 
   useEffect(() => {
     getUserPermissions().then(p => {
-      const normalizedRole = p.role === 'coach' || p.role === 'editor' || p.role === 'entry_only' ? 'data_entry' : p.role
+      const normalizedRole =
+        p.role === 'coach' || p.role === 'editor' || p.role === 'entry_only'
+          ? 'data_entry'
+          : p.role === 'super_admin'
+            ? 'superadmin'
+            : p.role
       setRole(normalizedRole)
-      if (normalizedRole === 'data_entry' && !['/entry', '/schedule', '/combine'].includes(pathname)) router.replace('/entry')
+      if (normalizedRole === 'data_entry' && !['/entry', '/results', '/schedule', '/combine'].includes(pathname)) router.replace('/entry')
     })
   }, [pathname])
 
@@ -59,6 +64,7 @@ export default function Navbar() {
     ],
     data_entry: [
       { href: '/entry', label: 'Data Entry' },
+      { href: '/results', label: 'Results' },
       { href: '/combine', label: 'Annual Combine' },
       { href: '/schedule', label: 'Schedule' },
     ],
@@ -74,6 +80,7 @@ export default function Navbar() {
     ],
     entry_only: [
       { href: '/entry', label: 'Data Entry' },
+      { href: '/results', label: 'Results' },
       { href: '/schedule', label: 'Schedule' },
     ],
   }
