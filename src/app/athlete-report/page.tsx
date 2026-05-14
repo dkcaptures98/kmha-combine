@@ -62,6 +62,17 @@ function isAAATeam(team: string) {
   return /AAA/i.test(team) && !isLRTeam(team)
 }
 
+
+function getAvailableTeamsForTest(entries: CombineEntry[], test: TestType) {
+  return Array.from(
+    new Set(
+      entries
+        .filter(e => e.test_type === test && Number.isFinite(e.score) && e.team)
+        .map(e => e.team)
+    )
+  )
+}
+
 function getAverageForTeam(entries: CombineEntry[], team: string, test: TestType) {
   const scores = entries
     .filter(e => e.team === team && e.test_type === test && Number.isFinite(e.score))
