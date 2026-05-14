@@ -1,12 +1,96 @@
 'use client'
+
+import JSZip from 'jszip'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 import { useState, useEffect } from 'react'
 import { Athlete, TEAMS } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
+
+function safeFileName(value: string) {
+  return value
+    .replace(/[<>:"/\\|?*]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+async function renderReportToPdfBlob(url: string) {
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.left = '-10000px'
+  iframe.style.top = '0'
+  iframe.style.width = '920px'
+  iframe.style.height = '1400px'
+  iframe.src = url
+
+  document.body.appendChild(iframe)
+
+  await new Promise<void>((resolve, reject) => {
+    iframe.onload = () => resolve()
+    iframe.onerror = () => reject(new Error('Could not load report card.'))
+  })
+
+  await new Promise(resolve => setTimeout(resolve, 700))
+
+  const doc = iframe.contentDocument
+  const target = doc?.querySelector('.report-wrapper') as HTMLElement | null
+
+  if (!target) {
+    document.body.removeChild(iframe)
+    throw new Error('Could not find report card content.')
+  }
+
+  const canvas = await html2canvas(target, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+  })
+
+  const imgData = canvas.toDataURL('image/jpeg', 0.95)
+  const pdf = new jsPDF('p', 'mm', 'a4')
+
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 8
+  const usableWidth = pageWidth - margin * 2
+  const imgHeight = (canvas.height * usableWidth) / canvas.width
+
+  let heightLeft = imgHeight
+  let position = margin
+
+  pdf.addImage(imgData, 'JPEG', margin, position, usableWidth, imgHeight)
+  heightLeft -= pageHeight - margin * 2
+
+  while (heightLeft > 0) {
+    pdf.addPage()
+    position = heightLeft - imgHeight + margin
+    pdf.addImage(imgData, 'JPEG', margin, position, usableWidth, imgHeight)
+    heightLeft -= pageHeight - margin * 2
+  }
+
+  document.body.removeChild(iframe)
+
+  return pdf.output('blob')
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+
 export default function PlayerReportCardsPage() {
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [loading, setLoading] = useState(true)
+  const [exportingZip, setExportingZip] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState('')
   const [search, setSearch] = useState('')
   const [generating, setGenerating] = useState<string | null>(null)
@@ -55,6 +139,53 @@ export default function PlayerReportCardsPage() {
   }).sort((a, b) => a.last_name.localeCompare(b.last_name))
 
   const teamCounts = filtered.reduce((acc, a) => { acc[a.team] = (acc[a.team] || 0) + 1; return acc }, {} as Record<string,number>)
+
+
+  async function downloadReportZip(scope: 'team' | 'all') {
+    const selectedTeamForZip = selectedTeam
+    const zip = new JSZip()
+    setExportingZip(true)
+
+    try {
+      const athletesToExport = athletes.filter(athlete => {
+        if (scope === 'team') return athlete.team === selectedTeamForZip
+        return true
+      })
+
+      if (scope === 'team' && !selectedTeamForZip) {
+        alert('Select a team first.')
+        return
+      }
+
+      if (!athletesToExport.length) {
+        alert('No athletes found for this export.')
+        return
+      }
+
+      for (const athlete of athletesToExport) {
+        const teamName = safeFileName(athlete.team || 'Unknown Team')
+        const folder = zip.folder(teamName)
+        const athleteName = safeFileName(`${athlete.first_name} ${athlete.last_name}`)
+        const reportUrl = `${window.location.origin}/athlete-report?id=${encodeURIComponent(athlete.id)}`
+        const pdfBlob = await renderReportToPdfBlob(reportUrl)
+
+        folder?.file(`${athleteName} - ${teamName} Report Card.pdf`, pdfBlob)
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const filename =
+        scope === 'team'
+          ? `${safeFileName(selectedTeamForZip)}-report-cards.zip`
+          : 'KMHA-all-report-cards.zip'
+
+      downloadBlob(zipBlob, filename)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not generate report ZIP.')
+    } finally {
+      setExportingZip(false)
+    }
+  }
+
 
   return (
     <div style={{ paddingBottom: '48px' }}>
@@ -106,7 +237,46 @@ export default function PlayerReportCardsPage() {
               style={{ width:'100%', background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'white', borderRadius:'6px', padding:'8px 12px', fontSize:'13px', outline:'none', boxSizing:'border-box' as const }} />
           </div>
           {filtered.length > 1 && (
-            <button onClick={openAllTeamReports} style={{ padding:'8px 16px', borderRadius:'6px', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600, cursor:'pointer', background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', color:'#60a5fa', alignSelf:'flex-end' }}>
+            
+            <button
+              type="button"
+              onClick={() => void downloadReportZip('team')}
+              disabled={exportingZip || !selectedTeam}
+              style={{
+                padding: '10px 16px',
+                borderRadius: '8px',
+                border: '1px solid rgba(59,130,246,0.25)',
+                background: exportingZip || !selectedTeam ? 'rgba(15,23,42,0.6)' : 'rgba(59,130,246,0.12)',
+                color: exportingZip || !selectedTeam ? '#475569' : '#60a5fa',
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                fontSize: '12px',
+                cursor: exportingZip || !selectedTeam ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {exportingZip ? 'Generating...' : 'Download Team ZIP'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void downloadReportZip('all')}
+              disabled={exportingZip}
+              style={{
+                padding: '10px 16px',
+                borderRadius: '8px',
+                border: '1px solid rgba(52,211,153,0.25)',
+                background: exportingZip ? 'rgba(15,23,42,0.6)' : 'rgba(52,211,153,0.10)',
+                color: exportingZip ? '#475569' : '#34d399',
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                fontSize: '12px',
+                cursor: exportingZip ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {exportingZip ? 'Generating...' : 'Download All Teams ZIP'}
+            </button>
+
+<button onClick={openAllTeamReports} style={{ padding:'8px 16px', borderRadius:'6px', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600, cursor:'pointer', background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', color:'#60a5fa', alignSelf:'flex-end' }}>
               🖨 Print All {filtered.length}
             </button>
           )}
