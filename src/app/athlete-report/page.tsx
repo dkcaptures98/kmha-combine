@@ -360,6 +360,10 @@ function Sparkline({ entries, test, color }: { entries: CombineEntry[]; test: Te
   )
 }
 
+function cleanBenchmarkLabel(label: string) {
+  return label.replace(/U(\d+)AAA Average/g, 'U$1 Average')
+}
+
 function AthleteReportContent() {
   const params = useSearchParams()
   const athleteId = params.get('id')
@@ -578,7 +582,7 @@ function AthleteReportContent() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'center' }}>
                     {benchmarks.map(benchmark => (
                       <div
-                        key={benchmark.label}
+                        key={cleanBenchmarkLabel(benchmark.label)}
                         style={{
                           background: 'white',
                           border: `1px solid ${color}30`,
@@ -589,7 +593,7 @@ function AthleteReportContent() {
                         }}
                       >
                         <div style={{ fontSize: '8px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          {benchmark.label}
+                          {cleanBenchmarkLabel(benchmark.label)}
                         </div>
 
                         <div style={{ fontSize: '11px', fontWeight: 700, color }}>
