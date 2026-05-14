@@ -1,16 +1,24 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getInactivityTimeout, setInactivityTimeout } from '@/components/InactivityLogout'
 
 export const dynamic = 'force-dynamic'
-
-interface User { id: string; email: string; created_at: string; last_sign_in_at: string }
 
 export default function AdminPage() {
   const [email, setEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+
+  // Inactivity timeout setting
+  const [timeoutMinutes, setTimeoutMinutes] = useState(30)
+  const [timeoutSaved, setTimeoutSaved] = useState(false)
+  const [timeoutError, setTimeoutError] = useState('')
+
+  useEffect(() => {
+    setTimeoutMinutes(getInactivityTimeout())
+  }, [])
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
@@ -26,6 +34,17 @@ export default function AdminPage() {
     else setMessage(`Invite sent to ${email}`)
     setEmail('')
     setInviting(false)
+  }
+
+  function handleSaveTimeout() {
+    setTimeoutError('')
+    if (timeoutMinutes < 1 || timeoutMinutes > 480) {
+      setTimeoutError('Please enter a value between 1 and 480 minutes.')
+      return
+    }
+    setInactivityTimeout(timeoutMinutes)
+    setTimeoutSaved(true)
+    setTimeout(() => setTimeoutSaved(false), 2500)
   }
 
   return (
@@ -56,6 +75,73 @@ export default function AdminPage() {
             {inviting ? 'Sending...' : 'Send Invite'}
           </button>
         </form>
+      </div>
+
+      {/* Auto Sign-Out Timer Setting */}
+      <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', padding: '24px', marginBottom: '24px', maxWidth: '500px' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 600, color: '#e2e8f0', fontFamily: 'var(--font-display)', letterSpacing: '0.04em' }}>AUTO SIGN-OUT TIMER</h2>
+        <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#64748b', lineHeight: 1.6 }}>
+          Users will be warned 60 seconds before sign-out. Set to a higher value for less interruption during long sessions.
+        </p>
+
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '8px', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            Timeout Duration
+          </label>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <input
+              type="number"
+              min={1}
+              max={480}
+              value={timeoutMinutes}
+              onChange={e => setTimeoutMinutes(Number(e.target.value))}
+              style={{ width: '100px', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '8px', padding: '10px 14px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+            />
+            <span style={{ color: '#64748b', fontSize: '13px' }}>minutes</span>
+          </div>
+        </div>
+
+        {/* Quick presets */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          {[15, 30, 60, 120].map(preset => (
+            <button
+              key={preset}
+              onClick={() => setTimeoutMinutes(preset)}
+              style={{
+                padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)',
+                fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(59,130,246,0.25)',
+                background: timeoutMinutes === preset ? 'rgba(37,99,235,0.3)' : 'rgba(5,15,35,0.6)',
+                color: timeoutMinutes === preset ? '#60a5fa' : '#64748b',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {preset}m
+            </button>
+          ))}
+        </div>
+
+        {timeoutError && (
+          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: '6px', padding: '10px 14px', fontSize: '13px', marginBottom: '12px' }}>
+            {timeoutError}
+          </div>
+        )}
+
+        {timeoutSaved && (
+          <div style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', color: '#34d399', borderRadius: '6px', padding: '10px 14px', fontSize: '13px', marginBottom: '12px' }}>
+            ✓ Timeout updated to {timeoutMinutes} minutes
+          </div>
+        )}
+
+        <button
+          onClick={handleSaveTimeout}
+          style={{ padding: '10px 24px', borderRadius: '6px', fontSize: '13px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', border: 'none', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.25)' }}
+        >
+          Save Timeout
+        </button>
+
+        <p style={{ margin: '14px 0 0', fontSize: '11px', color: '#334155', lineHeight: 1.6 }}>
+          ⚠ This setting is saved to this browser only. Changes take effect immediately on next activity.
+        </p>
       </div>
 
       {/* Instructions */}
