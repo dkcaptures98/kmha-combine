@@ -10,15 +10,6 @@ function getAdminClient() {
   )
 }
 
-function todayTorontoDateString() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Toronto',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
 function normalizeRole(role?: string | null) {
   if (!role) return 'data_entry'
 
@@ -37,25 +28,33 @@ function isAdminRole(role?: string | null) {
   return normalized === 'admin' || normalized === 'super_admin'
 }
 
-function entryDateString(entry: any) {
-  if (entry?.date) return String(entry.date)
-
-  if (entry?.scheduled_date) return String(entry.scheduled_date)
-
-  return null
-}
-
 function normalizeTest(value: unknown) {
   return String(value || '').trim().toLowerCase()
 }
 
-function normalizeTeam(value: unknown) {
-  return String(value || '').trim().toLowerCase()
+function getTorontoNow() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+
+  const year = Number(parts.find(p => p.type === 'year')?.value)
+  const month = Number(parts.find(p => p.type === 'month')?.value)
+  const day = Number(parts.find(p => p.type === 'day')?.value)
+
+  return new Date(Date.UTC(year, month - 1, day))
 }
 
-function valueMatchesSchedule(entryValue: string, scheduledValues: Set<string>) {
-  if (scheduledValues.size === 0) return true
-  return scheduledValues.has(entryValue)
+function getCurrentWeekStartToronto() {
+  const today = getTorontoNow()
+  const day = today.getUTCDay()
+  const diffToMonday = day === 0 ? -6 : 1 - day
+
+  today.setUTCDate(today.getUTCDate() + diffToMonday)
+
+  return today.toISOString().slice(0, 10)
 }
 
 async function logAudit(action: string, details: any, userEmail?: string) {
@@ -90,34 +89,13 @@ async function assertEntryAllowedForUser(userId: string, entries: any[]) {
     return { allowed: true, role }
   }
 
-  const today = todayTorontoDateString()
+  const currentWeekStart = getCurrentWeekStartToronto()
   const admin = getAdminClient()
-
-  const requestedDates = new Set<string>()
-
-  for (const entry of entries) {
-    const dateFromEntry = entryDateString(entry)
-    if (dateFromEntry) requestedDates.add(dateFromEntry)
-  }
-
-  // If entry payload does not carry a date, data_entry can only submit for today's schedule.
-  if (requestedDates.size > 0) {
-    for (const date of requestedDates) {
-      if (date !== today) {
-        return {
-          allowed: false,
-          role,
-          error: `Data entry is locked. You can only submit entries for today's scheduled testing date (${today}).`,
-          status: 403,
-        }
-      }
-    }
-  }
 
   const { data: scheduledRows, error } = await admin
     .from('combine_schedule')
-    .select('*')
-    .eq('date', today)
+    .select('week_start,test_type')
+    .eq('week_start', currentWeekStart)
 
   if (error) {
     return {
@@ -132,64 +110,25 @@ async function assertEntryAllowedForUser(userId: string, entries: any[]) {
     return {
       allowed: false,
       role,
-      error: `Data entry is locked. No testing is scheduled for today (${today}).`,
+      error: `Data entry is locked. No testing is scheduled for this week (${currentWeekStart}).`,
       status: 403,
     }
   }
 
-  const allowedTests = new Set<string>()
-  const allowedTeams = new Set<string>()
-
-  for (const row of scheduledRows) {
-    const possibleTests = [
-      row.test_type,
-      row.test,
-      row.test_name,
-      row.testing_type,
-      row.event_type,
-    ]
-
-    for (const test of possibleTests) {
-      const normalized = normalizeTest(test)
-      if (normalized) allowedTests.add(normalized)
-    }
-
-    const possibleTeams = [
-      row.team,
-      row.team_name,
-    ]
-
-    for (const team of possibleTeams) {
-      const normalized = normalizeTeam(team)
-      if (normalized) allowedTeams.add(normalized)
-    }
-
-    if (Array.isArray(row.teams)) {
-      for (const team of row.teams) {
-        const normalized = normalizeTeam(team)
-        if (normalized) allowedTeams.add(normalized)
-      }
-    }
-  }
+  const allowedTests = new Set(
+    scheduledRows
+      .map(row => normalizeTest(row.test_type))
+      .filter(Boolean)
+  )
 
   for (const entry of entries) {
-    const entryTest = normalizeTest(entry.test_type || entry.test || entry.test_name)
-    const entryTeam = normalizeTeam(entry.team || entry.team_name)
+    const entryTest = normalizeTest(entry.test_type)
 
-    if (!valueMatchesSchedule(entryTest, allowedTests)) {
+    if (!allowedTests.has(entryTest)) {
       return {
         allowed: false,
         role,
-        error: `${entry.test_type || entry.test || 'This test'} is locked. That test is not scheduled for today.`,
-        status: 403,
-      }
-    }
-
-    if (!valueMatchesSchedule(entryTeam, allowedTeams)) {
-      return {
-        allowed: false,
-        role,
-        error: `${entry.team || 'This team'} is locked. That team is not scheduled for today.`,
+        error: `${entry.test_type || 'This test'} is locked. Only scheduled tests can be entered this week.`,
         status: 403,
       }
     }
