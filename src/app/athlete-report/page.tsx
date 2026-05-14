@@ -190,17 +190,17 @@ function Sparkline({ entries, test, color }: { entries: CombineEntry[]; test: Te
 
   if (sorted.length < 2) return null
 
-  const W = 340
-  const H = 120
-  const PAD = { top: 28, right: 24, bottom: 28, left: 48 }
+  const W = 420
+  const H = 150
+  const PAD = { top: 34, right: 30, bottom: 34, left: 54 }
 
   const vals = sorted.map(e => e.score)
   const rawMin = Math.min(...vals)
   const rawMax = Math.max(...vals)
   const rawRange = rawMax - rawMin || 1
 
-  const min = rawMin - rawRange * 0.15
-  const max = rawMax + rawRange * 0.15
+  const min = rawMin - rawRange * 0.2
+  const max = rawMax + rawRange * 0.2
   const range = max - min || 1
 
   const scaleX = (i: number) => PAD.left + (i / (sorted.length - 1)) * (W - PAD.left - PAD.right)
@@ -309,7 +309,7 @@ function AthleteReportContent() {
           }
 
           .trend-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
+            grid-template-columns: 1fr !important;
           }
         }
       `}</style>
@@ -348,7 +348,7 @@ function AthleteReportContent() {
         </button>
       </div>
 
-      <div className="report-wrapper" style={{ maxWidth: '860px', margin: '0 auto', padding: '36px 36px 48px' }}>
+      <div className="report-wrapper" style={{ maxWidth: '920px', margin: '0 auto', padding: '36px 36px 48px' }}>
         <div
           style={{
             display: 'flex',
@@ -428,11 +428,6 @@ function AthleteReportContent() {
           {testsWithData.map((test, idx) => {
             const best = getBest(entries, test)
             const benchmark = getBenchmark(athlete.team, allEntries, test)
-            const comparison =
-              best !== null && benchmark !== null
-                ? getDifferenceFromBenchmark(best, benchmark.average, test)
-                : null
-
             const color = TEST_COLORS[idx % TEST_COLORS.length]
 
             return (
@@ -528,7 +523,7 @@ function AthleteReportContent() {
             Performance Trends
           </h2>
 
-          <div className="trend-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
+          <div className="trend-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px' }}>
             {testsWithData.map((test, idx) => {
               const color = TEST_COLORS[idx % TEST_COLORS.length]
               const best = getBest(entries, test)

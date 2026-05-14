@@ -129,7 +129,6 @@ export default function SchedulePage() {
       <div style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', padding: '24px 0 20px', marginBottom: '24px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, letterSpacing: '0.06em', color: 'white' }}>COMBINE SCHEDULE</h1>
-          <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '13px' }}>Live testing calendar — updates in real time</p>
         </div>
         {isAdmin && (
           <button onClick={() => setAdding(!adding)} style={{ padding: '8px 16px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', background: adding ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#1d4ed8,#2563eb)', border: adding ? '1px solid rgba(59,130,246,0.2)' : 'none', color: 'white' }}>

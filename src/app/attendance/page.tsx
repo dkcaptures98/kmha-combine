@@ -94,7 +94,6 @@ export default function AttendancePage() {
     <div style={{ paddingBottom: '48px' }}>
       <div style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', padding: '24px 0 20px', marginBottom: '24px' }}>
         <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, letterSpacing: '0.06em', color: 'white' }}>ATTENDANCE</h1>
-        <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '13px' }}>Track who shows up for each test week</p>
       </div>
 
       {/* Selectors */}

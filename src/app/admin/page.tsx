@@ -301,9 +301,6 @@ export default function AdminPage() {
         >
           ADMIN PANEL
         </h1>
-        <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '13px' }}>
-          Manage users, roles and team access
-        </p>
       </div>
 
       <div
