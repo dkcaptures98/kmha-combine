@@ -33,8 +33,8 @@ const roleCards = [
     border: 'rgba(251,191,36,0.2)',
   },
   {
-    title: 'COACH',
-    description: 'View athlete/team data, submit changes — no deletion',
+    title: 'DATA ENTRY',
+    description: 'Enter attendance and testing data, submit changes — no deletion',
     color: '#60a5fa',
     bg: 'rgba(30,64,175,0.2)',
     border: 'rgba(96,165,250,0.2)',
@@ -58,8 +58,9 @@ function displayRole(user: AppUser) {
   const role = (user.role || 'coach').toLowerCase()
 
   if (role === 'admin') return 'Admin'
-  if (role === 'coach') return 'Coach'
-  if (role === 'editor') return 'Coach'
+  if (role === 'coach') return 'Data Entry'
+  if (role === 'data_entry') return 'Data Entry'
+  if (role === 'editor') return 'Data Entry'
   if (role === 'read_only') return 'Read Only'
   if (role === 'viewer') return 'Read Only'
 
@@ -71,7 +72,8 @@ function apiRole(user: AppUser) {
 
   const role = (user.role || 'coach').toLowerCase()
 
-  if (role === 'editor') return 'coach'
+  if (role === 'editor') return 'data_entry'
+  if (role === 'coach') return 'data_entry'
   if (role === 'viewer') return 'read_only'
 
   return role
@@ -592,7 +594,7 @@ export default function AdminPage() {
                               }}
                             >
                               <option value="admin">Admin</option>
-                              <option value="coach">Coach</option>
+                              <option value="data_entry">Data Entry</option>
                               <option value="read_only">Read Only</option>
                             </select>
                           )}
