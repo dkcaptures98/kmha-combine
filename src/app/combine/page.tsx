@@ -39,6 +39,15 @@ interface LockInfo {
 
 function isU1012(team: string) { return U10_12.includes(team) }
 
+function todayTorontoDateString() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
 export default function CombinePage() {
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [results, setResults] = useState<Record<string, CombineResult>>({})
@@ -53,9 +62,11 @@ export default function CombinePage() {
   const [newLockNotes, setNewLockNotes] = useState('')
   const timers = useRef<Record<string, any>>({})
 
-  const isAdmin = role === 'superadmin' || role === 'admin'
-  const isDataEntry = role === 'data_entry'
-  const isLocked = lock?.locked && !isAdmin
+  const isAdmin = role === 'superadmin' || role === 'super_admin' || role === 'admin'
+  const isDataEntry = role === 'data_entry' || role === 'coach' || role === 'editor' || role === 'entry_only'
+  const today = todayTorontoDateString()
+  const isScheduledCombineDate = !!lock?.combine_date && lock.combine_date === today
+  const isLocked = !isAdmin && (lock?.locked || !isScheduledCombineDate)
   const isU12Team = selectedTeam ? isU1012(selectedTeam) : false
 
   useEffect(() => {
@@ -186,7 +197,9 @@ export default function CombinePage() {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: '6px', padding: '6px 12px' }}>
               <span style={{ fontSize: '12px' }}>✓</span>
-              <span style={{ fontSize: '12px', color: '#34d399', fontFamily: 'var(--font-display)', fontWeight: 600 }}>OPEN FOR ENTRY</span>
+              <span style={{ fontSize: '12px', color: '#34d399', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                {isAdmin ? 'OPEN FOR ADMIN' : isScheduledCombineDate ? 'OPEN FOR ENTRY' : 'LOCKED UNTIL COMBINE DATE'}
+              </span>
             </div>
           )}
           {isAdmin && (
@@ -268,7 +281,9 @@ export default function CombinePage() {
           <span style={{ fontSize: '24px' }}>🔒</span>
           <div>
             <p style={{ margin: '0 0 2px', fontSize: '14px', fontWeight: 700, color: '#f87171', fontFamily: 'var(--font-display)' }}>Combine Entry is Locked</p>
-            <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>Data entry is only permitted on the day of the combine. Contact your admin if you need access.</p>
+            <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>
+              Data entry is only permitted on the scheduled combine date{lock?.combine_date ? ` (${lock.combine_date})` : ''}. Today is {today}. Contact your admin if you need access.
+            </p>
           </div>
         </div>
       )}
