@@ -14,7 +14,8 @@ export default function EntryPage() {
   const [selectedMonth, setSelectedMonth] = useState(ALL_MONTHS[new Date().getMonth()])
   const [scores, setScores] = useState<Record<string, Partial<Record<TestType, string>>>>({})
   const [entryIds, setEntryIds] = useState<Record<string, string>>({})
-  const [saveStatus, setSaveStatus] = useState<Record<string, 'saving'|'saved'|'deleted'|''>>({})
+  const [saveStatus, setSaveStatus] = useState<Record<string, 'saving'|'saved'|'deleted'|'error'|''>>({})
+  const [entryError, setEntryError] = useState('')
   const [role, setRole] = useState<UserRole | null>(null)
   const [scheduledTests, setScheduledTests] = useState<string[]>([])
   const [scheduleLoading, setScheduleLoading] = useState(true)
@@ -41,23 +42,50 @@ export default function EntryPage() {
 
   useEffect(() => {
     if (!selectedTeam) return
-    fetch(`/api/athletes?team=${selectedTeam}`).then(r => r.json()).then(data => {
-      setAthletes(data); setScores({}); setEntryIds({})
-    })
+    setEntryError('')
+    fetch(`/api/athletes?team=${selectedTeam}`)
+      .then(r => r.json())
+      .then(data => {
+        setAthletes(Array.isArray(data) ? data : [])
+        setScores({})
+        setEntryIds({})
+      })
+      .catch(() => {
+        setAthletes([])
+        setScores({})
+        setEntryIds({})
+        setEntryError('Could not load athletes for this team.')
+      })
   }, [selectedTeam])
 
   useEffect(() => {
     if (!selectedTeam) return
+    setEntryError('')
     fetch(`/api/entries?team=${selectedTeam}&year=${selectedYear}&month=${selectedMonth}`)
-      .then(r => r.json()).then((data: any[]) => {
+      .then(async r => {
+        const data = await r.json()
+        if (!r.ok) throw new Error(data?.error || 'Could not load existing scores.')
+        return data
+      })
+      .then((data: any[]) => {
         const s: Record<string, Partial<Record<TestType, string>>> = {}
         const ids: Record<string, string> = {}
-        data.forEach(e => {
-          if (!s[e.athlete_id]) s[e.athlete_id] = {}
-          s[e.athlete_id][e.test_type as TestType] = e.score.toString()
-          ids[`${e.athlete_id}-${e.test_type}`] = e.id
-        })
-        setScores(s); setEntryIds(ids)
+
+        if (Array.isArray(data)) {
+          data.forEach(e => {
+            if (!s[e.athlete_id]) s[e.athlete_id] = {}
+            s[e.athlete_id][e.test_type as TestType] = String(e.score)
+            ids[`${e.athlete_id}-${e.test_type}`] = e.id
+          })
+        }
+
+        setScores(s)
+        setEntryIds(ids)
+      })
+      .catch(err => {
+        setScores({})
+        setEntryIds({})
+        setEntryError(err instanceof Error ? err.message : 'Could not load existing scores.')
       })
   }, [selectedTeam, selectedYear, selectedMonth])
 
@@ -71,31 +99,84 @@ export default function EntryPage() {
 
   function setScore(athleteId: string, test: TestType, value: string, name: string, team: string) {
     if (isLocked(test)) return
+
+    setEntryError('')
     setScores(prev => ({ ...prev, [athleteId]: { ...(prev[athleteId] || {}), [test]: value } }))
+
     const key = `${athleteId}-${test}`
     clearTimeout(timers.current[key])
+
     timers.current[key] = setTimeout(async () => {
       setSaveStatus(p => ({ ...p, [key]: 'saving' }))
-      if (value === '') {
-        const existingId = entryIds[key]
-        if (existingId) {
-          await fetch(`/api/entries?id=${existingId}`, { method: 'DELETE' })
-          setEntryIds(prev => { const n = { ...prev }; delete n[key]; return n })
-          setSaveStatus(p => ({ ...p, [key]: 'deleted' }))
-        } else {
-          setSaveStatus(p => ({ ...p, [key]: '' }))
+
+      try {
+        if (value === '') {
+          const existingId = entryIds[key]
+
+          if (existingId) {
+            const res = await fetch(`/api/entries?id=${existingId}`, { method: 'DELETE' })
+            const payload = await res.json().catch(() => ({}))
+
+            if (!res.ok) {
+              throw new Error(payload?.error || 'Could not delete entry.')
+            }
+
+            setEntryIds(prev => {
+              const n = { ...prev }
+              delete n[key]
+              return n
+            })
+
+            setSaveStatus(p => ({ ...p, [key]: 'deleted' }))
+          } else {
+            setSaveStatus(p => ({ ...p, [key]: '' }))
+          }
+
+          return
         }
-      } else if (!isNaN(parseFloat(value))) {
+
+        if (!Number.isFinite(parseFloat(value))) {
+          setSaveStatus(p => ({ ...p, [key]: '' }))
+          return
+        }
+
         const existingId = entryIds[key]
         const id = existingId || generateId()
-        await fetch('/api/entries', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify([{ id, athlete_id: athleteId, athlete_name: name, team, score: parseFloat(value), month: selectedMonth, year: selectedYear, test_type: test }])
+
+        const res = await fetch('/api/entries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([
+            {
+              id,
+              athlete_id: athleteId,
+              athlete_name: name,
+              team,
+              score: parseFloat(value),
+              month: selectedMonth,
+              year: selectedYear,
+              test_type: test,
+            },
+          ]),
         })
-        if (!existingId) setEntryIds(prev => ({ ...prev, [key]: id }))
+
+        const payload = await res.json().catch(() => ({}))
+
+        if (!res.ok) {
+          throw new Error(payload?.error || 'Could not save entry.')
+        }
+
+        if (!existingId) {
+          setEntryIds(prev => ({ ...prev, [key]: id }))
+        }
+
         setSaveStatus(p => ({ ...p, [key]: 'saved' }))
+      } catch (err) {
+        setSaveStatus(p => ({ ...p, [key]: 'error' }))
+        setEntryError(err instanceof Error ? err.message : 'Could not save entry.')
+      } finally {
+        setTimeout(() => setSaveStatus(p => ({ ...p, [key]: '' })), 2500)
       }
-      setTimeout(() => setSaveStatus(p => ({ ...p, [key]: '' })), 2000)
     }, 800)
   }
 
@@ -115,6 +196,12 @@ export default function EntryPage() {
             : <p style={{ margin: 0, fontSize: '13px', color: '#f87171' }}>
                 ⚠️ No tests scheduled this week — all columns are locked. Contact your admin.
               </p>}
+        </div>
+      )}
+
+      {entryError && (
+        <div style={{ marginBottom: '20px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontSize: '13px' }}>
+          {entryError}
         </div>
       )}
 
@@ -202,8 +289,8 @@ export default function EntryPage() {
                               placeholder="—"
                             />
                             {!locked && (
-                              <span style={{ fontSize: '11px', width: '14px', color: status === 'saving' ? '#64748b' : status === 'saved' ? '#34d399' : status === 'deleted' ? '#f87171' : 'transparent' }}>
-                                {status === 'saving' ? '…' : status === 'saved' ? '✓' : status === 'deleted' ? '✕' : '·'}
+                              <span style={{ fontSize: '11px', width: '14px', color: status === 'saving' ? '#64748b' : status === 'saved' ? '#34d399' : status === 'deleted' || status === 'error' ? '#f87171' : 'transparent' }}>
+                                {status === 'saving' ? '…' : status === 'saved' ? '✓' : status === 'deleted' || status === 'error' ? '✕' : '·'}
                               </span>
                             )}
                           </div>
