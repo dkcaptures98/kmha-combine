@@ -18,7 +18,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             })
           } catch {
-            // Ignore when cookies cannot be written in this context.
+            // Ignore when cookies cannot be written.
           }
         },
       },
