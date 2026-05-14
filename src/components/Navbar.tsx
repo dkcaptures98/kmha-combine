@@ -14,9 +14,9 @@ export default function Navbar() {
 
   useEffect(() => {
     getUserPermissions().then(p => {
-      setRole(p.role)
-      if (p.role === 'entry_only' && pathname !== '/entry' && pathname !== '/schedule') router.replace('/entry')
-      if (p.role === 'coach' && pathname === '/entry') router.replace('/dashboard')
+      const normalizedRole = p.role === 'coach' || p.role === 'editor' || p.role === 'entry_only' ? 'data_entry' : p.role
+      setRole(normalizedRole)
+      if (normalizedRole === 'data_entry' && !['/entry', '/schedule', '/combine'].includes(pathname)) router.replace('/entry')
     })
   }, [pathname])
 
@@ -55,7 +55,16 @@ export default function Navbar() {
       { href: '/import', label: 'Import' },
       { href: '/admin', label: 'Admin' },
     ],
+    data_entry: [
+      { href: '/entry', label: 'Data Entry' },
+      { href: '/combine', label: 'Annual Combine' },
+      { href: '/schedule', label: 'Schedule' },
+    ],
     coach: [
+      { href: '/entry', label: 'Data Entry' },
+      { href: '/combine', label: 'Annual Combine' },
+      { href: '/schedule', label: 'Schedule' },
+
       { href: '/dashboard', label: 'Dashboard' },
       { href: '/search', label: 'Search' },
       { href: '/schedule', label: 'Schedule' },
@@ -69,11 +78,12 @@ export default function Navbar() {
   const badgeMap: Record<string, { bg: string; border: string; color: string; label: string }> = {
     superadmin: { bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.4)', color: '#f87171', label: 'SUPER ADMIN' },
     admin:      { bg: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.3)', color: '#fbbf24', label: 'ADMIN' },
-    coach:      { bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.25)', color: '#60a5fa', label: 'COACH' },
+    data_entry:{ bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.25)', color: '#60a5fa', label: 'DATA ENTRY' },
+    coach:      { bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.25)', color: '#60a5fa', label: 'DATA ENTRY' },
     entry_only: { bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)', color: '#34d399', label: 'ENTRY' },
   }
 
-  const links = role ? (linksByRole[role] || linksByRole.coach) : []
+  const links = role ? (linksByRole[role] || linksByRole.data_entry || linksByRole.coach) : []
   const badge = role ? badgeMap[role] : null
   const isActive = (href: string) => pathname === href || (pathname?.startsWith(href) && href !== '/')
 
@@ -89,7 +99,7 @@ export default function Navbar() {
   return (
     <nav style={{ background: 'rgba(2,11,24,0.95)', borderBottom: '1px solid rgba(59,130,246,0.15)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 40 }}>
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px', gap: '8px' }}>
-        <Link href={role === 'entry_only' ? '/entry' : '/dashboard'} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', flexShrink: 0 }}>
+        <Link href={role === 'data_entry' || role === 'entry_only' ? '/entry' : '/dashboard'} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', flexShrink: 0 }}>
           <div style={{ width: '28px', height: '28px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
             <img src="/logo.jpg" alt="KMHA" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>

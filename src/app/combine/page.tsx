@@ -54,11 +54,15 @@ export default function CombinePage() {
   const timers = useRef<Record<string, any>>({})
 
   const isAdmin = role === 'superadmin' || role === 'admin'
+  const isDataEntry = role === 'data_entry'
   const isLocked = lock?.locked && !isAdmin
   const isU12Team = selectedTeam ? isU1012(selectedTeam) : false
 
   useEffect(() => {
-    getUserPermissions().then(p => setRole(p.role))
+    getUserPermissions().then(p => {
+      const normalizedRole = p.role === 'coach' || p.role === 'editor' || p.role === 'entry_only' ? 'data_entry' : p.role
+      setRole(normalizedRole)
+    })
     loadLocks()
   }, [])
 

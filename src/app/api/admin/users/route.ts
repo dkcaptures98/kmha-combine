@@ -26,7 +26,7 @@ export async function GET() {
     id: u.id, email: u.email, created_at: u.created_at,
     last_sign_in_at: u.last_sign_in_at, email_confirmed_at: u.email_confirmed_at,
     teams: perms?.find((p: any) => p.user_id === u.id)?.teams || null,
-    role: perms?.find((p: any) => p.user_id === u.id)?.role || 'coach',
+    role: perms?.find((p: any) => p.user_id === u.id)?.role || 'data_entry',
   }))
   return NextResponse.json(users)
 }
@@ -50,7 +50,7 @@ export async function PUT(request: Request) {
   const { user_id, teams, role } = await request.json()
   const admin = getAdminClient()
   const { error } = await admin.from('user_permissions').upsert(
-    { user_id, teams: teams?.length ? teams : null, role: role || 'coach' },
+    { user_id, teams: teams?.length ? teams : null, role: role || 'data_entry' },
     { onConflict: 'user_id' }
   )
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
