@@ -138,7 +138,7 @@ async function assertEntryAllowedForUser(userId: string, entries: any[]) {
 }
 
 export async function GET(request: Request) {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { searchParams } = new URL(request.url)
   const team = searchParams.get('team')
   const year = searchParams.get('year')
@@ -176,7 +176,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const {
     data: { user },
@@ -225,7 +225,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const {
     data: { user },

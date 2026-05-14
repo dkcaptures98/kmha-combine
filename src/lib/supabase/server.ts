@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 
-export async function createClient() {
-  const cookieStore = await cookies()
+export function createClient() {
+  const cookieStore = cookies()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,7 +18,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             })
           } catch {
-            // Some server contexts cannot write cookies.
+            // Ignore when cookies cannot be set in this context.
           }
         },
       },

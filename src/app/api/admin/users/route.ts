@@ -32,7 +32,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createServerClient()
+  const supabase = createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   const { email } = await request.json()
   const admin = getAdminClient()
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const supabase = await createServerClient()
+  const supabase = createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   const { user_id, teams, role } = await request.json()
   const admin = getAdminClient()
@@ -59,7 +59,7 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = await createServerClient()
+  const supabase = createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   const { searchParams } = new URL(request.url)
   const userId = searchParams.get('id')
