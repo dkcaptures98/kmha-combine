@@ -37,23 +37,25 @@ function isAdminRole(role?: string | null) {
   return normalized === 'admin' || normalized === 'super_admin'
 }
 
-function monthNameToNumber(month: string) {
-  const months: Record<string, number> = {
-    january: 1,
-    february: 2,
-    march: 3,
-    april: 4,
-    may: 5,
-    june: 6,
-    july: 7,
-    august: 8,
-    september: 9,
-    october: 10,
-    november: 11,
-    december: 12,
-  }
+function entryDateString(entry: any) {
+  if (entry?.date) return String(entry.date)
 
-  return months[month.toLowerCase()] || null
+  if (entry?.scheduled_date) return String(entry.scheduled_date)
+
+  return null
+}
+
+function normalizeTest(value: unknown) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function normalizeTeam(value: unknown) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function valueMatchesSchedule(entryValue: string, scheduledValues: Set<string>) {
+  if (scheduledValues.size === 0) return true
+  return scheduledValues.has(entryValue)
 }
 
 async function logAudit(action: string, details: any, userEmail?: string) {
@@ -66,9 +68,7 @@ async function logAudit(action: string, details: any, userEmail?: string) {
       user_email: userEmail || 'unknown',
       details,
     })
-  } catch {
-    // Do not fail the request if audit logging fails.
-  }
+  } catch {}
 }
 
 async function getUserRole(userId: string) {
@@ -92,6 +92,27 @@ async function assertEntryAllowedForUser(userId: string, entries: any[]) {
 
   const today = todayTorontoDateString()
   const admin = getAdminClient()
+
+  const requestedDates = new Set<string>()
+
+  for (const entry of entries) {
+    const dateFromEntry = entryDateString(entry)
+    if (dateFromEntry) requestedDates.add(dateFromEntry)
+  }
+
+  // If entry payload does not carry a date, data_entry can only submit for today's schedule.
+  if (requestedDates.size > 0) {
+    for (const date of requestedDates) {
+      if (date !== today) {
+        return {
+          allowed: false,
+          role,
+          error: `Data entry is locked. You can only submit entries for today's scheduled testing date (${today}).`,
+          status: 403,
+        }
+      }
+    }
+  }
 
   const { data: scheduledRows, error } = await admin
     .from('combine_schedule')
@@ -120,34 +141,55 @@ async function assertEntryAllowedForUser(userId: string, entries: any[]) {
   const allowedTeams = new Set<string>()
 
   for (const row of scheduledRows) {
-    if (row.test_type) allowedTests.add(String(row.test_type))
-    if (row.test) allowedTests.add(String(row.test))
-    if (row.test_name) allowedTests.add(String(row.test_name))
+    const possibleTests = [
+      row.test_type,
+      row.test,
+      row.test_name,
+      row.testing_type,
+      row.event_type,
+    ]
 
-    if (row.team) allowedTeams.add(String(row.team))
+    for (const test of possibleTests) {
+      const normalized = normalizeTest(test)
+      if (normalized) allowedTests.add(normalized)
+    }
+
+    const possibleTeams = [
+      row.team,
+      row.team_name,
+    ]
+
+    for (const team of possibleTeams) {
+      const normalized = normalizeTeam(team)
+      if (normalized) allowedTeams.add(normalized)
+    }
+
     if (Array.isArray(row.teams)) {
-      for (const team of row.teams) allowedTeams.add(String(team))
+      for (const team of row.teams) {
+        const normalized = normalizeTeam(team)
+        if (normalized) allowedTeams.add(normalized)
+      }
     }
   }
 
   for (const entry of entries) {
-    const entryTest = String(entry.test_type || '')
-    const entryTeam = String(entry.team || '')
+    const entryTest = normalizeTest(entry.test_type || entry.test || entry.test_name)
+    const entryTeam = normalizeTeam(entry.team || entry.team_name)
 
-    if (allowedTests.size > 0 && !allowedTests.has(entryTest)) {
+    if (!valueMatchesSchedule(entryTest, allowedTests)) {
       return {
         allowed: false,
         role,
-        error: `${entryTest} entry is locked. That test is not scheduled for today.`,
+        error: `${entry.test_type || entry.test || 'This test'} is locked. That test is not scheduled for today.`,
         status: 403,
       }
     }
 
-    if (allowedTeams.size > 0 && !allowedTeams.has(entryTeam)) {
+    if (!valueMatchesSchedule(entryTeam, allowedTeams)) {
       return {
         allowed: false,
         role,
-        error: `${entryTeam} entry is locked. That team is not scheduled for today.`,
+        error: `${entry.team || 'This team'} is locked. That team is not scheduled for today.`,
         status: 403,
       }
     }
