@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+const SUPER_ADMIN_EMAIL = 'd423kim@uwaterloo.ca'
+
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,7 +46,7 @@ function normalizeRole(role?: string | null) {
 
 function isAdminRole(role?: string | null) {
   const normalized = normalizeRole(role)
-  return normalized === 'admin' || normalized === 'super_admin'
+  return normalized === 'admin' || normalized === 'super_admin' || normalized === 'superadmin'
 }
 
 function normalizeTest(value: unknown) {
@@ -89,7 +91,11 @@ async function logAudit(action: string, details: any, userEmail?: string) {
   } catch {}
 }
 
-async function getUserRole(userId: string) {
+async function getUserRole(userId: string, userEmail?: string | null) {
+  if (userEmail?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+    return 'super_admin'
+  }
+
   const admin = getAdminClient()
 
   const { data } = await admin
@@ -101,8 +107,8 @@ async function getUserRole(userId: string) {
   return normalizeRole(data?.role)
 }
 
-async function assertEntryAllowedForUser(userId: string, entries: any[]) {
-  const role = await getUserRole(userId)
+async function assertEntryAllowedForUser(userId: string, entries: any[], userEmail?: string | null) {
+  const role = await getUserRole(userId, userEmail)
 
   if (isAdminRole(role)) {
     return { allowed: true, role }
@@ -205,7 +211,7 @@ export async function POST(request: Request) {
   const body = await request.json()
   const entries = Array.isArray(body) ? body : [body]
 
-  const permission = await assertEntryAllowedForUser(user.id, entries)
+  const permission = await assertEntryAllowedForUser(user.id, entries, user.email)
 
   if (!permission.allowed) {
     return NextResponse.json(
@@ -248,7 +254,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 })
   }
 
-  const role = await getUserRole(user.id)
+  const role = await getUserRole(user.id, user.email)
 
   if (!isAdminRole(role)) {
     return NextResponse.json(
