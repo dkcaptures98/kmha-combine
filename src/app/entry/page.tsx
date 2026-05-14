@@ -21,7 +21,10 @@ export default function EntryPage() {
   const timers = useRef<Record<string, any>>({})
 
   useEffect(() => {
-    getUserPermissions().then(p => setRole(p.role))
+    getUserPermissions().then(p => {
+      const normalizedRole = p.role === 'coach' || p.role === 'editor' || p.role === 'entry_only' ? 'data_entry' : p.role
+      setRole(normalizedRole)
+    })
     fetch('/api/schedule').then(r => r.json()).then((schedule: any[]) => {
       const today = new Date()
       const day = today.getDay()
@@ -58,7 +61,7 @@ export default function EntryPage() {
       })
   }, [selectedTeam, selectedYear, selectedMonth])
 
-  const isEntryOnly = role === 'entry_only'
+  const isEntryOnly = role === 'entry_only' || role === 'data_entry' || role === 'coach' || role === 'editor'
 
   function isLocked(test: TestType) {
     if (!isEntryOnly) return false
