@@ -3,11 +3,13 @@ import { useState, useEffect, useRef } from 'react'
 import { Athlete, TestType, TEST_TYPES, TEST_LABELS, TEST_UNITS, TEAMS, ALL_MONTHS } from '@/types'
 import { generateId } from '@/lib/uuid'
 import { getUserPermissions, UserRole } from '@/lib/permissions'
+import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 const YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030]
 
 export default function EntryPage() {
+  const supabase = createClient()
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -97,6 +99,17 @@ export default function EntryPage() {
     return !scheduledTests.includes(test)
   }
 
+  async function getAuthHeaders() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    return {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    }
+  }
+
   function setScore(athleteId: string, test: TestType, value: string, name: string, team: string) {
     if (isLocked(test)) return
 
@@ -114,7 +127,7 @@ export default function EntryPage() {
           const existingId = entryIds[key]
 
           if (existingId) {
-            const res = await fetch(`/api/entries?id=${existingId}`, { method: 'DELETE' })
+            const res = await fetch(`/api/entries?id=${existingId}`, { method: 'DELETE', headers: await getAuthHeaders() })
             const payload = await res.json().catch(() => ({}))
 
             if (!res.ok) {
@@ -145,7 +158,7 @@ export default function EntryPage() {
 
         const res = await fetch('/api/entries', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await getAuthHeaders(),
           body: JSON.stringify([
             {
               id,

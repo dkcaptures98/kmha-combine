@@ -10,6 +10,25 @@ function getAdminClient() {
   )
 }
 
+async function getRequestUser(request: Request) {
+  const authHeader = request.headers.get('authorization')
+  const token = authHeader?.replace('Bearer ', '').trim()
+
+  if (token) {
+    const admin = getAdminClient()
+    const { data, error } = await admin.auth.getUser(token)
+
+    if (!error && data.user) return data.user
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  return user
+}
+
 function normalizeRole(role?: string | null) {
   if (!role) return 'data_entry'
 
@@ -177,10 +196,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getRequestUser(request)
 
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 })
@@ -226,10 +242,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getRequestUser(request)
 
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 })
