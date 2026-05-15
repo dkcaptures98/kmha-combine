@@ -237,44 +237,6 @@ export default function PlayerReportCardsPage() {
               style={{ width:'100%', background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'white', borderRadius:'6px', padding:'8px 12px', fontSize:'13px', outline:'none', boxSizing:'border-box' as const }} />
           </div>
           {filtered.length > 1 && (
-            
-            <button
-              type="button"
-              onClick={() => void downloadReportZip('team')}
-              disabled={exportingZip || !selectedTeam}
-              style={{
-                padding: '10px 16px',
-                borderRadius: '8px',
-                border: '1px solid rgba(59,130,246,0.25)',
-                background: exportingZip || !selectedTeam ? 'rgba(15,23,42,0.6)' : 'rgba(59,130,246,0.12)',
-                color: exportingZip || !selectedTeam ? '#475569' : '#60a5fa',
-                fontFamily: 'var(--font-display)',
-                fontWeight: 700,
-                fontSize: '12px',
-                cursor: exportingZip || !selectedTeam ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {exportingZip ? 'Generating...' : 'Download Team ZIP'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void downloadReportZip('all')}
-              disabled={exportingZip}
-              style={{
-                padding: '10px 16px',
-                borderRadius: '8px',
-                border: '1px solid rgba(52,211,153,0.25)',
-                background: exportingZip ? 'rgba(15,23,42,0.6)' : 'rgba(52,211,153,0.10)',
-                color: exportingZip ? '#475569' : '#34d399',
-                fontFamily: 'var(--font-display)',
-                fontWeight: 700,
-                fontSize: '12px',
-                cursor: exportingZip ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {exportingZip ? 'Generating...' : 'Download All Teams ZIP'}
-            </button>
 
 <button onClick={openAllTeamReports} style={{ padding:'8px 16px', borderRadius:'6px', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600, cursor:'pointer', background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', color:'#60a5fa', alignSelf:'flex-end' }}>
               🖨 Print All {filtered.length}
