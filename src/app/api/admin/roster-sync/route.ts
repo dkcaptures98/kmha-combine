@@ -84,6 +84,13 @@ export async function POST(request: Request) {
   const teamChanges: any[] = []
   const toArchive: any[] = []
 
+  if (fullReplacement && confirm) {
+    await admin
+      .from('athletes')
+      .update({ active: false })
+      .neq('id', '__never_match__')
+  }
+
   for (const row of incoming) {
     const existingAthlete = row.id ? existingById.get(String(row.id)) : existingByName.get(keyFor(row.first_name, row.last_name))
 
@@ -149,7 +156,7 @@ export async function POST(request: Request) {
           first_name: row.first_name,
           last_name: row.last_name,
           team: row.team,
-          active: row.active ?? true,
+          active: fullReplacement ? true : (row.active ?? true),
         })
         .eq('id', existingAthlete.id)
     } else {
@@ -160,7 +167,7 @@ export async function POST(request: Request) {
           first_name: row.first_name,
           last_name: row.last_name,
           team: row.team,
-          active: row.active ?? true,
+          active: fullReplacement ? true : (row.active ?? true),
         })
     }
   }
