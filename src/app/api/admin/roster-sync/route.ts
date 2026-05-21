@@ -43,9 +43,11 @@ function parseCsv(text: string) {
     })
 
     return {
+      id: normalize(row.id),
       first_name: normalize(row.first_name || row.firstname || row.first || row['first name']),
       last_name: normalize(row.last_name || row.lastname || row.last || row['last name']),
       team: normalizeTeam(row.team),
+      active: String(row.active || 'true').toLowerCase() !== 'false',
     }
   }).filter(row => row.first_name && row.last_name && row.team)
 }
@@ -68,12 +70,14 @@ export async function POST(request: Request) {
 
   const existingAthletes = existing || []
   const existingByName = new Map<string, any>()
+  const existingById = new Map<string, any>()
 
   existingAthletes.forEach(athlete => {
     existingByName.set(keyFor(athlete.first_name, athlete.last_name), athlete)
+    existingById.set(String(athlete.id), athlete)
   })
 
-  const incomingKeys = new Set(incoming.map(row => keyFor(row.first_name, row.last_name)))
+  const incomingKeys = new Set(incoming.map(row => row.id ? `id:${row.id}` : keyFor(row.first_name, row.last_name)))
 
   const returning: any[] = []
   const newAthletes: any[] = []
@@ -81,7 +85,7 @@ export async function POST(request: Request) {
   const toArchive: any[] = []
 
   for (const row of incoming) {
-    const existingAthlete = existingByName.get(keyFor(row.first_name, row.last_name))
+    const existingAthlete = row.id ? existingById.get(String(row.id)) : existingByName.get(keyFor(row.first_name, row.last_name))
 
     if (!existingAthlete) {
       newAthletes.push(row)
@@ -107,7 +111,7 @@ export async function POST(request: Request) {
   }
 
   for (const athlete of existingAthletes) {
-    const athleteKey = keyFor(athlete.first_name, athlete.last_name)
+    const athleteKey = incomingKeys.has(`id:${athlete.id}`) ? `id:${athlete.id}` : keyFor(athlete.first_name, athlete.last_name)
     if (athlete.active !== false && !incomingKeys.has(athleteKey)) {
       toArchive.push({
         id: athlete.id,
@@ -136,7 +140,7 @@ export async function POST(request: Request) {
   }
 
   for (const row of incoming) {
-    const existingAthlete = existingByName.get(keyFor(row.first_name, row.last_name))
+    const existingAthlete = row.id ? existingById.get(String(row.id)) : existingByName.get(keyFor(row.first_name, row.last_name))
 
     if (existingAthlete) {
       await admin
@@ -145,17 +149,18 @@ export async function POST(request: Request) {
           first_name: row.first_name,
           last_name: row.last_name,
           team: row.team,
-          active: true,
+          active: row.active ?? true,
         })
         .eq('id', existingAthlete.id)
     } else {
       await admin
         .from('athletes')
         .insert({
+          ...(row.id ? { id: row.id } : {}),
           first_name: row.first_name,
           last_name: row.last_name,
           team: row.team,
-          active: true,
+          active: row.active ?? true,
         })
     }
   }
