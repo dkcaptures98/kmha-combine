@@ -44,6 +44,13 @@ function AthleteProfile() {
   const byTest: Record<TestType, CombineEntry[]> = {} as any
   TEST_TYPES.forEach(t => { byTest[t] = sortedEntries.filter(e => e.test_type === t) })
 
+  const entriesByTeam = sortedEntries.reduce<Record<string, CombineEntry[]>>((acc, entry) => {
+    const team = entry.team || athlete.team || 'Unknown Team'
+    if (!acc[team]) acc[team] = []
+    acc[team].push(entry)
+    return acc
+  }, {})
+
   return (
     <div style={{ paddingBottom: '48px' }}>
       {/* Header */}
