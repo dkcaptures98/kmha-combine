@@ -70,6 +70,29 @@ function AthleteProfile() {
       {/* Stats grid */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'12px', marginBottom:'32px' }}>
   
+      {TEST_TYPES.map(test => {
+          const testEntries = byTest[test]
+          if (!testEntries.length) return null
+          const best = testEntries.reduce((b, e) => {
+            if (test === 'Sprint') return e.score < b.score ? e : b
+            return e.score > b.score ? e : b
+          })
+          const latest = testEntries[testEntries.length - 1]
+          const first = testEntries[0]
+          const change = test === 'Sprint' ? first.score - latest.score : latest.score - first.score
+          return (
+            <div key={test} style={{ background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.12)', borderRadius:'10px', padding:'16px' }}>
+              <p style={{ color:'#475569', fontSize:'11px', fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', margin:'0 0 8px', fontFamily:'var(--font-display)' }}>{TEST_LABELS[test]}</p>
+              <p style={{ color:'#60a5fa', fontSize:'26px', fontWeight:700, margin:'0 0 4px', fontFamily:'var(--font-display)' }}>{formatScore(latest.score, test)}</p>
+              <p style={{ color:'#475569', fontSize:'11px', margin:0 }}>
+                Best: <span style={{ color:'#fbbf24' }}>{formatScore(best.score, test)}</span>
+                {testEntries.length > 1 && <span style={{ marginLeft:'8px', color: change > 0 ? '#34d399' : '#f87171' }}>{change > 0 ? '+' : ''}{change.toFixed(2)}</span>}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
       <div style={{ marginBottom:'24px' }}>
         <h2 style={{ margin:'0 0 12px', fontFamily:'var(--font-display)', fontSize:'18px', color:'white', letterSpacing:'0.06em' }}>
           Testing History by Team
@@ -109,28 +132,7 @@ function AthleteProfile() {
         </div>
       </div>
 
-      {TEST_TYPES.map(test => {
-          const testEntries = byTest[test]
-          if (!testEntries.length) return null
-          const best = testEntries.reduce((b, e) => {
-            if (test === 'Sprint') return e.score < b.score ? e : b
-            return e.score > b.score ? e : b
-          })
-          const latest = testEntries[testEntries.length - 1]
-          const first = testEntries[0]
-          const change = test === 'Sprint' ? first.score - latest.score : latest.score - first.score
-          return (
-            <div key={test} style={{ background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.12)', borderRadius:'10px', padding:'16px' }}>
-              <p style={{ color:'#475569', fontSize:'11px', fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', margin:'0 0 8px', fontFamily:'var(--font-display)' }}>{TEST_LABELS[test]}</p>
-              <p style={{ color:'#60a5fa', fontSize:'26px', fontWeight:700, margin:'0 0 4px', fontFamily:'var(--font-display)' }}>{formatScore(latest.score, test)}</p>
-              <p style={{ color:'#475569', fontSize:'11px', margin:0 }}>
-                Best: <span style={{ color:'#fbbf24' }}>{formatScore(best.score, test)}</span>
-                {testEntries.length > 1 && <span style={{ marginLeft:'8px', color: change > 0 ? '#34d399' : '#f87171' }}>{change > 0 ? '+' : ''}{change.toFixed(2)}</span>}
-              </p>
-            </div>
-          )
-        })}
-      </div>
+
 
       {/* Score history per test */}
       {TEST_TYPES.map(test => {
