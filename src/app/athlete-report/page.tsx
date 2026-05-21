@@ -337,6 +337,7 @@ function AthleteReportContent() {
 
   const TEST_COLORS = ['#1d4ed8', '#059669', '#7c3aed', '#d97706', '#dc2626']
   const testsWithData = TEST_TYPES.filter(t => entries.some(e => e.test_type === t && Number.isFinite(e.score)))
+  const historicalTeams = [...new Set(entries.map(e => e.team).filter(Boolean))]
 
   return (
     <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', background: 'white', color: '#0f172a', minHeight: '100vh' }}>
