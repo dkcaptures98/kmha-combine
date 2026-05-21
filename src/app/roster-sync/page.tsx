@@ -25,6 +25,8 @@ export default function RosterSyncPage() {
   const [fileName, setFileName] = useState('')
   const [result, setResult] = useState<SyncResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [archiveMissing, setArchiveMissing] = useState(false)
+  const [fullReplacement, setFullReplacement] = useState(false)
 
   async function handleFile(file: File | null) {
     if (!file) return
@@ -90,6 +92,33 @@ export default function RosterSyncPage() {
 
           {fileName && <p style={{ margin: '8px 0 0', color: '#60a5fa', fontSize: '12px' }}>{fileName}</p>}
         </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: '#94a3b8', fontSize: '13px' }}>
+          <input
+            type="checkbox"
+            checked={archiveMissing}
+            onChange={e => setArchiveMissing(e.target.checked)}
+          />
+          Archive missing athletes on Confirm Sync
+          <span style={{ color: '#f87171', fontSize: '12px' }}>
+            Leave this OFF unless you are sure the To Archive list should be hidden.
+          </span>
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', color: '#94a3b8', fontSize: '13px' }}>
+          <input
+            type="checkbox"
+            checked={fullReplacement}
+            onChange={e => {
+              setFullReplacement(e.target.checked)
+              if (e.target.checked) setArchiveMissing(true)
+            }}
+          />
+          Full replacement mode
+          <span style={{ color: '#fbbf24', fontSize: '12px' }}>
+            Archives everyone first, then reactivates and updates only athletes in this CSV.
+          </span>
+        </label>
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button
