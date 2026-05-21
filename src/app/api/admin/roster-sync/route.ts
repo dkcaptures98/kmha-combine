@@ -15,6 +15,15 @@ function normalize(value: unknown) {
   return String(value || '').trim()
 }
 
+function normalizeTeam(value: unknown) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/^KJR\s*[-_]?\s*/i, '')
+    .replace(/\s+/g, '')
+    .replace(/-/g, '')
+    .trim()
+}
+
 function keyFor(first: string, last: string) {
   return `${first.trim().toLowerCase()}|${last.trim().toLowerCase()}`
 }
@@ -36,7 +45,7 @@ function parseCsv(text: string) {
     return {
       first_name: normalize(row.first_name || row.firstname || row.first || row['first name']),
       last_name: normalize(row.last_name || row.lastname || row.last || row['last name']),
-      team: normalize(row.team),
+      team: normalizeTeam(row.team),
     }
   }).filter(row => row.first_name && row.last_name && row.team)
 }
