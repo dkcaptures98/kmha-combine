@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Athlete, TEAMS } from '@/types'
 import { generateId } from '@/lib/uuid'
 
@@ -78,6 +79,23 @@ export default function AthletesPage() {
           <p style={{ margin:'4px 0 0', color:'#475569', fontSize:'13px' }}>{athletes.length} registered athletes</p>
         </div>
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+          <Link
+            href="/roster-sync"
+            style={{
+              padding:'8px 16px',
+              borderRadius:'6px',
+              fontSize:'12px',
+              fontFamily:'var(--font-display)',
+              fontWeight:600,
+              background:'rgba(59,130,246,0.12)',
+              border:'1px solid rgba(59,130,246,0.35)',
+              color:'#60a5fa',
+              textDecoration:'none',
+            }}
+          >
+            Roster Sync
+          </Link>
+
           <button onClick={handleExportCSV} disabled={exportingCSV} style={{ padding:'8px 16px', borderRadius:'6px', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600, cursor:'pointer', background:'rgba(52,211,153,0.1)', border:'1px solid rgba(52,211,153,0.3)', color:'#34d399' }}>
             {exportingCSV ? 'Exporting...' : '↓ Export CSV'}
           </button>
