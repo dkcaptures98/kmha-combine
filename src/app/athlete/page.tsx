@@ -62,7 +62,47 @@ function AthleteProfile() {
 
       {/* Stats grid */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'12px', marginBottom:'32px' }}>
-        {TEST_TYPES.map(test => {
+  
+      <div style={{ marginBottom:'24px' }}>
+        <h2 style={{ margin:'0 0 12px', fontFamily:'var(--font-display)', fontSize:'18px', color:'white', letterSpacing:'0.06em' }}>
+          Testing History by Team
+        </h2>
+
+        <div style={{ display:'grid', gap:'14px' }}>
+          {Object.entries(entriesByTeam).map(([team, teamEntries]) => (
+            <div key={team} style={{ background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.15)', borderRadius:'10px', overflow:'hidden' }}>
+              <div style={{ padding:'12px 16px', borderBottom:'1px solid rgba(59,130,246,0.08)', background:'rgba(5,15,35,0.45)' }}>
+                <h3 style={{ margin:0, color:'#60a5fa', fontSize:'13px', fontFamily:'var(--font-display)', letterSpacing:'0.08em' }}>{team}</h3>
+              </div>
+
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding:'9px 12px', textAlign:'left', color:'#334155', fontSize:'10px', fontFamily:'var(--font-display)', textTransform:'uppercase' }}>Month</th>
+                      <th style={{ padding:'9px 12px', textAlign:'left', color:'#334155', fontSize:'10px', fontFamily:'var(--font-display)', textTransform:'uppercase' }}>Year</th>
+                      <th style={{ padding:'9px 12px', textAlign:'left', color:'#334155', fontSize:'10px', fontFamily:'var(--font-display)', textTransform:'uppercase' }}>Test</th>
+                      <th style={{ padding:'9px 12px', textAlign:'right', color:'#334155', fontSize:'10px', fontFamily:'var(--font-display)', textTransform:'uppercase' }}>Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamEntries.map(entry => (
+                      <tr key={entry.id} style={{ borderTop:'1px solid rgba(59,130,246,0.05)' }}>
+                        <td style={{ padding:'9px 12px', color:'#e2e8f0', fontSize:'12px' }}>{entry.month}</td>
+                        <td style={{ padding:'9px 12px', color:'#94a3b8', fontSize:'12px' }}>{entry.year}</td>
+                        <td style={{ padding:'9px 12px', color:'#94a3b8', fontSize:'12px' }}>{TEST_LABELS[entry.test_type as TestType] || entry.test_type}</td>
+                        <td style={{ padding:'9px 12px', color:'#e2e8f0', fontSize:'12px', textAlign:'right', fontWeight:700 }}>{entry.score}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {TEST_TYPES.map(test => {
           const testEntries = byTest[test]
           if (!testEntries.length) return null
           const best = testEntries.reduce((b, e) => {

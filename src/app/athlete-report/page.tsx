@@ -462,6 +462,11 @@ function AthleteReportContent() {
                   {athlete.team}
                 </span>
                 <span style={{ fontSize: '12px', color: '#64748b' }}>Combine Performance Report Card</span>
+                {[...new Set(entries.map(e => e.team).filter(Boolean))].length > 1 && (
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Historical Teams: {[...new Set(entries.map(e => e.team).filter(Boolean))].join(', ')}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -655,6 +660,20 @@ function AthleteReportContent() {
                   Month
                 </th>
 
+                <th
+                  style={{
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  Team
+                </th>
+
                 {testsWithData.map(test => (
                   <th
                     key={test}
@@ -682,6 +701,10 @@ function AthleteReportContent() {
                   <tr key={monthYear} style={{ background: i % 2 === 0 ? 'white' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '7px 12px', fontWeight: 500, color: '#0f172a', fontSize: '11px' }}>
                       {month} {year}
+                    </td>
+
+                    <td style={{ padding: '7px 12px', fontWeight: 700, color: '#475569', fontSize: '10px' }}>
+                      {[...new Set(entries.filter(e => e.month === month && e.year === year).map(e => e.team).filter(Boolean))].join(', ') || athlete.team}
                     </td>
 
                     {testsWithData.map((test, tidx) => {
@@ -730,6 +753,8 @@ function AthleteReportContent() {
                 >
                   Personal Best
                 </td>
+
+                <td style={{ padding: '8px 12px' }} />
 
                 {testsWithData.map((test, idx) => {
                   const best = getBest(entries, test)
