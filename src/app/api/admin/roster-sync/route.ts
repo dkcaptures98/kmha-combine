@@ -26,6 +26,7 @@ function cleanTeam(value: unknown) {
     .replace(/^KJR\s*/i, '')
     .replace(/\s+/g, '')
     .replace(/-/g, '')
+    .replace(/KLR$/g, 'LR')
     .trim()
 }
 
