@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { randomUUID } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,14 +12,18 @@ function adminClient() {
   )
 }
 
-function normalize(value: unknown) {
+function clean(value: unknown) {
   return String(value || '').trim()
 }
 
-function normalizeTeam(value: unknown) {
-  return String(value || '')
+function cleanName(value: unknown) {
+  return clean(value).replace(/\s+/g, ' ')
+}
+
+function cleanTeam(value: unknown) {
+  return clean(value)
     .toUpperCase()
-    .replace(/^KJR\s*[-_]?\s*/i, '')
+    .replace(/^KJR\s*/i, '')
     .replace(/\s+/g, '')
     .replace(/-/g, '')
     .trim()
@@ -29,7 +34,7 @@ function keyFor(first: string, last: string) {
 }
 
 function splitCsvLine(line: string) {
-  const out: string[] = []
+  const values: string[] = []
   let current = ''
   let inQuotes = false
 
@@ -43,15 +48,15 @@ function splitCsvLine(line: string) {
     } else if (char === '"') {
       inQuotes = !inQuotes
     } else if (char === ',' && !inQuotes) {
-      out.push(current.trim())
+      values.push(current.trim())
       current = ''
     } else {
       current += char
     }
   }
 
-  out.push(current.trim())
-  return out
+  values.push(current.trim())
+  return values
 }
 
 function parseCsv(text: string) {
@@ -60,25 +65,39 @@ function parseCsv(text: string) {
 
   const headers = splitCsvLine(lines[0]).map(h => h.trim().toLowerCase())
 
-  return lines
-    .slice(1)
-    .map(line => {
-      const values = splitCsvLine(line)
-      const row: Record<string, string> = {}
+  const rows = lines.slice(1).map(line => {
+    const values = splitCsvLine(line)
+    const row: Record<string, string> = {}
 
-      headers.forEach((header, index) => {
-        row[header] = values[index] || ''
-      })
-
-      return {
-        id: normalize(row.id),
-        first_name: normalize(row.first_name || row.firstname || row.first || row['first name']),
-        last_name: normalize(row.last_name || row.lastname || row.last || row['last name']),
-        team: normalizeTeam(row.team),
-        active: String(row.active || 'true').toLowerCase() !== 'false',
-      }
+    headers.forEach((header, index) => {
+      row[header] = values[index] || ''
     })
-    .filter(row => row.first_name && row.last_name && row.team)
+
+    const first = cleanName(row.first_name || row.firstname || row.first || row['first name'])
+    const last = cleanName(row.last_name || row.lastname || row.last || row['last name'])
+    const team = cleanTeam(row.team)
+
+    return {
+      id: clean(row.id),
+      first_name: first,
+      last_name: last,
+      team,
+      active: String(row.active || 'true').toLowerCase() !== 'false',
+    }
+  })
+
+  const seen = new Set<string>()
+
+  return rows.filter(row => {
+    if (!row.first_name || !row.last_name || !row.team) return false
+    if (row.first_name.toLowerCase() === 'first' && row.last_name.toLowerCase() === 'last') return false
+
+    const key = row.id ? `id:${row.id}` : keyFor(row.first_name, row.last_name)
+    if (seen.has(key)) return false
+    seen.add(key)
+
+    return true
+  })
 }
 
 export async function POST(request: Request) {
@@ -102,44 +121,43 @@ export async function POST(request: Request) {
     }
 
     const existingAthletes = existing || []
-    const existingByName = new Map<string, any>()
     const existingById = new Map<string, any>()
+    const existingByName = new Map<string, any>()
 
-    existingAthletes.forEach(athlete => {
-      existingByName.set(keyFor(athlete.first_name, athlete.last_name), athlete)
+    for (const athlete of existingAthletes) {
       existingById.set(String(athlete.id), athlete)
-    })
+      existingByName.set(keyFor(athlete.first_name, athlete.last_name), athlete)
+    }
 
-    const incomingKeys = new Set(
-      incoming.map(row => row.id ? `id:${row.id}` : keyFor(row.first_name, row.last_name))
-    )
+    const incomingMatchedIds = new Set<string>()
 
     const returning: any[] = []
     const newAthletes: any[] = []
     const teamChanges: any[] = []
-    const toArchive: any[] = []
 
     for (const row of incoming) {
-      const existingAthlete = row.id
+      const matched = row.id
         ? existingById.get(String(row.id))
         : existingByName.get(keyFor(row.first_name, row.last_name))
 
-      if (!existingAthlete) {
+      if (!matched) {
         newAthletes.push(row)
         continue
       }
 
-      if (normalizeTeam(existingAthlete.team) !== row.team) {
+      incomingMatchedIds.add(String(matched.id))
+
+      if (cleanTeam(matched.team) !== row.team) {
         teamChanges.push({
-          id: existingAthlete.id,
+          id: matched.id,
           first_name: row.first_name,
           last_name: row.last_name,
-          old_team: existingAthlete.team,
+          old_team: matched.team,
           new_team: row.team,
         })
       } else {
         returning.push({
-          id: existingAthlete.id,
+          id: matched.id,
           first_name: row.first_name,
           last_name: row.last_name,
           team: row.team,
@@ -147,19 +165,14 @@ export async function POST(request: Request) {
       }
     }
 
-    for (const athlete of existingAthletes) {
-      const matchedById = incomingKeys.has(`id:${athlete.id}`)
-      const matchedByName = incomingKeys.has(keyFor(athlete.first_name, athlete.last_name))
-
-      if (athlete.active !== false && !matchedById && !matchedByName) {
-        toArchive.push({
-          id: athlete.id,
-          first_name: athlete.first_name,
-          last_name: athlete.last_name,
-          team: athlete.team,
-        })
-      }
-    }
+    const toArchive = existingAthletes
+      .filter(a => a.active !== false && !incomingMatchedIds.has(String(a.id)))
+      .map(a => ({
+        id: a.id,
+        first_name: a.first_name,
+        last_name: a.last_name,
+        team: a.team,
+      }))
 
     const counts = {
       incoming: incoming.length,
@@ -180,46 +193,77 @@ export async function POST(request: Request) {
       })
     }
 
+    if (!incoming.length) {
+      return NextResponse.json({ error: 'No valid athletes found in CSV.' }, { status: 400 })
+    }
+
     if (fullReplacement) {
-      await admin
+      const { error: archiveAllError } = await admin
         .from('athletes')
         .update({ active: false })
         .neq('id', '__never_match__')
+
+      if (archiveAllError) {
+        return NextResponse.json({ error: `Archive all failed: ${archiveAllError.message}` }, { status: 500 })
+      }
+    } else if (archiveMissing && toArchive.length) {
+      const { error: archiveSomeError } = await admin
+        .from('athletes')
+        .update({ active: false })
+        .in('id', toArchive.map(a => a.id))
+
+      if (archiveSomeError) {
+        return NextResponse.json({ error: `Archive missing failed: ${archiveSomeError.message}` }, { status: 500 })
+      }
     }
 
+    let updated = 0
+    let inserted = 0
+
     for (const row of incoming) {
-      const existingAthlete = row.id
+      const matched = row.id
         ? existingById.get(String(row.id))
         : existingByName.get(keyFor(row.first_name, row.last_name))
 
-      if (existingAthlete) {
-        await admin
+      if (matched) {
+        const { error: updateError } = await admin
           .from('athletes')
           .update({
             first_name: row.first_name,
             last_name: row.last_name,
             team: row.team,
-            active: fullReplacement ? true : row.active,
+            active: true,
           })
-          .eq('id', existingAthlete.id)
+          .eq('id', matched.id)
+
+        if (updateError) {
+          return NextResponse.json(
+            { error: `Update failed for ${row.first_name} ${row.last_name}: ${updateError.message}` },
+            { status: 500 }
+          )
+        }
+
+        updated++
       } else {
-        await admin
+        const { error: insertError } = await admin
           .from('athletes')
           .insert({
-            ...(row.id ? { id: row.id } : {}),
+            id: row.id || randomUUID(),
             first_name: row.first_name,
             last_name: row.last_name,
             team: row.team,
             active: true,
           })
-      }
-    }
 
-    if (archiveMissing && !fullReplacement && toArchive.length) {
-      await admin
-        .from('athletes')
-        .update({ active: false })
-        .in('id', toArchive.map(a => a.id))
+        if (insertError) {
+          return NextResponse.json(
+            { error: `Insert failed for ${row.first_name} ${row.last_name}: ${insertError.message}` },
+            { status: 500 }
+          )
+        }
+
+        inserted++
+      }
     }
 
     try {
@@ -231,6 +275,8 @@ export async function POST(request: Request) {
           archiveMissing,
           fullReplacement,
           counts,
+          updated,
+          inserted,
         },
       })
     } catch {}
@@ -238,8 +284,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       counts,
-      archiveMissing,
+      updated,
+      inserted,
       fullReplacement,
+      archiveMissing,
     })
   } catch (err) {
     return NextResponse.json(
