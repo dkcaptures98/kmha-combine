@@ -56,66 +56,54 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 })
-  }
-
-  const body = await request.json()
-
-  if (!body.season) {
-    return NextResponse.json({ error: 'Season is required.' }, { status: 400 })
-  }
-
-  const admin = adminClient()
-
-  const { data: perms } = await admin
-    .from('user_permissions')
-    .select('role')
-    .eq('user_id', user.id)
-    .single()
-
-  const role = normalizeRole(perms?.role)
-  const isAdmin = isAdminRole(role)
-
-  const { data: lock, error: lockError } = await admin
-    .from('combine_schedule_lock')
-    .select('locked, combine_date')
-    .eq('season', body.season)
-    .single()
-
-  if (lockError && lockError.code !== 'PGRST116') {
-    return NextResponse.json({ error: lockError.message }, { status: 500 })
-  }
-
-  // TEMP: combine entry unlocked for all authenticated users.
-
-  const { data, error } = await admin
-    .from('combine_results')
-    .upsert(body, { onConflict: 'athlete_id,season' })
-    .select()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
   try {
-    await admin.from('audit_log').insert({
-      action: 'COMBINE_ENTRY',
-      table_name: 'combine_results',
-      user_email: user.email || 'unknown',
-      details: {
-        athlete: body.athlete_name,
-        team: body.team,
-        season: body.season,
-        role,
-        combine_date: lock?.combine_date || null,
-      },
-    })
-  } catch {}
+    const body = await request.json()
 
-  return NextResponse.json(data)
+    if (!body.athlete_id) {
+      return NextResponse.json({ error: 'athlete_id is required.' }, { status: 400 })
+    }
+
+    if (!body.season) {
+      return NextResponse.json({ error: 'season is required.' }, { status: 400 })
+    }
+
+    const admin = adminClient()
+
+    const payload = {
+      ...body,
+      athlete_name: body.athlete_name || '',
+      team: body.team || '',
+      season: body.season,
+    }
+
+    const { data, error } = await admin
+      .from('combine_results')
+      .upsert(payload, { onConflict: 'athlete_id,season' })
+      .select()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    try {
+      await admin.from('audit_log').insert({
+        action: 'COMBINE_ENTRY',
+        table_name: 'combine_results',
+        user_email: 'combine-event-entry',
+        details: {
+          athlete: payload.athlete_name,
+          team: payload.team,
+          season: payload.season,
+          emergency_save: true,
+        },
+      })
+    } catch {}
+
+    return NextResponse.json(data)
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Combine save failed.' },
+      { status: 500 }
+    )
+  }
 }
