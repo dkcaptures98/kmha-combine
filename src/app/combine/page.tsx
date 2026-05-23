@@ -66,7 +66,7 @@ export default function CombinePage() {
   const isDataEntry = role === 'data_entry' || role === 'coach' || role === 'editor' || role === 'entry_only'
   const today = todayTorontoDateString()
   const isScheduledCombineDate = !!lock?.combine_date && lock.combine_date === today
-  const isLocked = !isAdmin && (lock?.locked || !isScheduledCombineDate)
+  const isLocked = false // TEMP: annual combine entry unlocked for all users
   const isU12Team = selectedTeam ? isU1012(selectedTeam) : false
 
   useEffect(() => {
@@ -190,14 +190,14 @@ export default function CombinePage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '6px 12px' }}>
               <span style={{ fontSize: '12px' }}>🔒</span>
               <span style={{ fontSize: '12px', color: '#f87171', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                {isAdmin ? 'LOCKED (Admin Override Active)' : 'LOCKED'}
+                'OPEN FOR ENTRY'
               </span>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: '6px', padding: '6px 12px' }}>
               <span style={{ fontSize: '12px' }}>✓</span>
               <span style={{ fontSize: '12px', color: '#34d399', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                {isAdmin ? 'OPEN FOR ADMIN' : isScheduledCombineDate ? 'OPEN FOR ENTRY' : 'LOCKED UNTIL COMBINE DATE'}
+                'OPEN FOR ENTRY'
               </span>
             </div>
           )}
