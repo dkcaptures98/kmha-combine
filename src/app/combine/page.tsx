@@ -15,6 +15,7 @@ interface CombineResult {
   athlete_name: string
   team: string
   season: string
+  sprint?: number | null
   height_ft?: number | null
   height_in?: number | null
   wingspan_ft?: number | null
@@ -309,6 +310,9 @@ export default function CombinePage() {
                   {/* Athlete */}
                   <th style={{ padding: '10px 12px', textAlign: 'left' as const, fontSize: '10px', fontWeight: 700, color: '#60a5fa', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', minWidth: '140px' }}>Athlete</th>
                   
+                  {/* Sprint */}
+                  <th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#fbbf24', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(251,191,36,0.35)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '80px' }}>10m Sprint<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>sec</span></th>
+
                   {/* Height group */}
                   <th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Height</th>
                   
@@ -336,6 +340,7 @@ export default function CombinePage() {
                 {/* Sub-headers for ft/in columns */}
                 <tr style={{ background: 'rgba(5,15,35,0.3)' }}>
                   <th style={{ padding: '4px 12px', borderBottom: '1px solid rgba(59,130,246,0.1)' }}></th>
+                  <th style={{ padding: '4px 6px', borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>
                   {['ft','in','ft','in'].map((label, i) => (
                     <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0||i===2 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>
                   ))}
@@ -375,6 +380,14 @@ export default function CombinePage() {
                         {athlete.last_name}, {athlete.first_name}
                       </td>
                       
+                      {/* Sprint */}
+                      <td style={{ padding: '4px 6px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>
+                        <input type="number" min="0" step="0.01" disabled={isLocked}
+                          value={r.sprint ?? ''} placeholder="—"
+                          onChange={e => updateField(athlete.id, name, 'sprint', e.target.value === '' ? null : parseFloat(e.target.value))}
+                          style={{ ...inp, width: '64px' }} />
+                      </td>
+
                       {/* Height ft/in */}
                       <td style={{ padding: '4px 4px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>{numInput('height_ft','44px')}</td>
                       <td style={{ padding: '4px 4px' }}>{numInput('height_in','44px')}</td>

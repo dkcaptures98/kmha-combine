@@ -93,34 +93,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: lockError.message }, { status: 500 })
   }
 
-  if (!isAdmin) {
-    if (lock?.locked) {
-      return NextResponse.json(
-        { error: 'Annual combine entry is locked. Contact your admin.' },
-        { status: 403 }
-      )
-    }
+  // TEMP: combine entry unlocked for all authenticated users.
 
-    if (!lock?.combine_date) {
-      return NextResponse.json(
-        { error: 'Annual combine entry is locked. No annual combine date is scheduled.' },
-        { status: 403 }
-      )
-    }
-
-    const today = todayTorontoDateString()
-
-    if (lock.combine_date !== today) {
-      return NextResponse.json(
-        {
-          error: `Annual combine entry is locked. Entry is only allowed on the scheduled combine date (${lock.combine_date}). Today is ${today}.`,
-        },
-        { status: 403 }
-      )
-    }
-  }
-
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from('combine_results')
     .upsert(body, { onConflict: 'athlete_id,season' })
     .select()
