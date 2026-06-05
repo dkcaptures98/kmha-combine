@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Athlete, CombineEntry, TestType, TEST_TYPES, TEST_LABELS, TEST_UNITS } from '@/types'
+import { Athlete, CombineEntry, TestType, TEST_TYPES, TEST_LABELS } from '@/types'
 import { formatScore } from '@/lib/analytics'
 import { Suspense } from 'react'
 
@@ -9,8 +9,10 @@ export const dynamic = 'force-dynamic'
 
 const MONTH_ORDER = ['September','October','November','December','January','February','March','April','May','June','July','August']
 
-function getMonthYear(entry: CombineEntry) {
-  return `${entry.month.slice(0,3)} ${entry.year}`
+function getSeasonLabel(entry: CombineEntry) {
+  if (['September','October','November','December'].includes(entry.month)) return `${entry.year}-${entry.year + 1}`
+  if (['January','February','March'].includes(entry.month)) return `${entry.year - 1}-${entry.year}`
+  return `${entry.year}`
 }
 
 function AthleteProfile() {
@@ -51,11 +53,21 @@ function AthleteProfile() {
     return acc
   }, {})
 
+  const entriesBySeasonTeam = sortedEntries.reduce<Record<string, CombineEntry[]>>((acc, entry) => {
+    const season = getSeasonLabel(entry)
+    const team = entry.team || athlete.team || 'Unknown Team'
+    const key = `${season} · ${team}`
+    if (!acc[key]) acc[key] = []
+    acc[key].push(entry)
+    return acc
+  }, {})
+
   const historicalTeams = Object.keys(entriesByTeam)
+  const latestEntry = sortedEntries[sortedEntries.length - 1]
+  const latestHistoryLabel = latestEntry ? `${getSeasonLabel(latestEntry)} · ${latestEntry.team || athlete.team}` : null
 
   return (
     <div style={{ paddingBottom: '48px' }}>
-      {/* Header */}
       <div style={{ borderBottom:'1px solid rgba(59,130,246,0.1)', padding:'24px 0 20px', marginBottom:'24px' }}>
         <a href="/athletes" style={{ color:'#3b82f6', fontSize:'13px', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'4px', marginBottom:'12px' }}>← Back to Athletes</a>
         <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
@@ -64,20 +76,27 @@ function AthleteProfile() {
           </div>
           <div>
             <h1 style={{ margin:0, fontFamily:'var(--font-display)', fontSize:'28px', fontWeight:700, letterSpacing:'0.04em', color:'white' }}>{athlete.first_name} {athlete.last_name}</h1>
-            <span style={{ background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.25)', color:'#60a5fa', borderRadius:'4px', padding:'2px 8px', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600 }}>{athlete.team}</span>
-            {historicalTeams.length > 1 && (
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'8px', marginTop:'6px' }}>
+              <span style={{ background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.25)', color:'#60a5fa', borderRadius:'4px', padding:'2px 8px', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600 }}>
+                Current roster row: {athlete.team}
+              </span>
+              {latestHistoryLabel && (
+                <span style={{ background:'rgba(52,211,153,0.08)', border:'1px solid rgba(52,211,153,0.22)', color:'#34d399', borderRadius:'4px', padding:'2px 8px', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600 }}>
+                  Latest testing history: {latestHistoryLabel}
+                </span>
+              )}
+            </div>
+            {historicalTeams.length > 0 && (
               <p style={{ margin:'8px 0 0', color:'#64748b', fontSize:'12px' }}>
-                Historical Teams: <span style={{ color:'#94a3b8' }}>{historicalTeams.join(', ')}</span>
+                Testing teams: <span style={{ color:'#94a3b8' }}>{historicalTeams.join(', ')}</span>
               </p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Stats grid */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'12px', marginBottom:'32px' }}>
-  
-      {TEST_TYPES.map(test => {
+        {TEST_TYPES.map(test => {
           const testEntries = byTest[test]
           if (!testEntries.length) return null
           const best = testEntries.reduce((b, e) => {
@@ -102,14 +121,14 @@ function AthleteProfile() {
 
       <div style={{ marginBottom:'24px' }}>
         <h2 style={{ margin:'0 0 12px', fontFamily:'var(--font-display)', fontSize:'18px', color:'white', letterSpacing:'0.06em' }}>
-          Testing History by Team
+          Testing History by Season and Team
         </h2>
 
         <div style={{ display:'grid', gap:'14px' }}>
-          {Object.entries(entriesByTeam).map(([team, teamEntries]) => (
-            <div key={team} style={{ background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.15)', borderRadius:'10px', overflow:'hidden' }}>
+          {Object.entries(entriesBySeasonTeam).map(([seasonTeam, teamEntries]) => (
+            <div key={seasonTeam} style={{ background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.15)', borderRadius:'10px', overflow:'hidden' }}>
               <div style={{ padding:'12px 16px', borderBottom:'1px solid rgba(59,130,246,0.08)', background:'rgba(5,15,35,0.45)' }}>
-                <h3 style={{ margin:0, color:'#60a5fa', fontSize:'13px', fontFamily:'var(--font-display)', letterSpacing:'0.08em' }}>{team}</h3>
+                <h3 style={{ margin:0, color:'#60a5fa', fontSize:'13px', fontFamily:'var(--font-display)', letterSpacing:'0.08em' }}>{seasonTeam}</h3>
               </div>
 
               <div style={{ overflowX:'auto' }}>
@@ -139,9 +158,6 @@ function AthleteProfile() {
         </div>
       </div>
 
-
-
-      {/* Score history per test */}
       {TEST_TYPES.map(test => {
         const testEntries = byTest[test]
         if (!testEntries.length) return null
@@ -154,7 +170,7 @@ function AthleteProfile() {
               <table style={{ width:'100%', borderCollapse:'collapse' }}>
                 <thead>
                   <tr>
-                    {['Date','Team','Score','vs Previous'].map(h => <th key={h} style={{ padding:'10px 16px', textAlign: h === 'Date' ? 'left' : 'right', fontSize:'11px', fontWeight:600, color:'#334155', letterSpacing:'0.06em', textTransform:'uppercase', fontFamily:'var(--font-display)', borderBottom:'1px solid rgba(59,130,246,0.08)' }}>{h}</th>)}
+                    {['Date','Season','Team','Score','vs Previous'].map(h => <th key={h} style={{ padding:'10px 16px', textAlign: h === 'Date' ? 'left' : 'right', fontSize:'11px', fontWeight:600, color:'#334155', letterSpacing:'0.06em', textTransform:'uppercase', fontFamily:'var(--font-display)', borderBottom:'1px solid rgba(59,130,246,0.08)' }}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -164,7 +180,8 @@ function AthleteProfile() {
                     return (
                       <tr key={entry.id} style={{ borderBottom:'1px solid rgba(59,130,246,0.05)' }}>
                         <td style={{ padding:'10px 16px', color:'#e2e8f0', fontSize:'13px' }}>{entry.month} {entry.year}</td>
-                        <td style={{ padding:'10px 16px', color:'#60a5fa', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600 }}>{entry.team || athlete.team}</td>
+                        <td style={{ padding:'10px 16px', textAlign:'right', color:'#94a3b8', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600 }}>{getSeasonLabel(entry)}</td>
+                        <td style={{ padding:'10px 16px', textAlign:'right', color:'#60a5fa', fontSize:'12px', fontFamily:'var(--font-display)', fontWeight:600 }}>{entry.team || athlete.team}</td>
                         <td style={{ padding:'10px 16px', textAlign:'right', color:'#94a3b8', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:600 }}>{formatScore(entry.score, test)}</td>
                         <td style={{ padding:'10px 16px', textAlign:'right', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:600, color: diff === null ? '#334155' : diff > 0 ? '#34d399' : diff < 0 ? '#f87171' : '#475569' }}>
                           {diff === null ? '—' : diff > 0 ? `+${diff.toFixed(2)}` : diff.toFixed(2)}
