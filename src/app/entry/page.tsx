@@ -7,14 +7,11 @@ import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 const YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030]
-const IN_SEASON_MONTHS = ['September','October','November','December','January','February','March']
+const SEASON_START_MONTHS = ['April','May','June','July','August','September','October','November','December']
 
 function getRosterSeason(year: number, month: string) {
-  if (IN_SEASON_MONTHS.includes(month)) {
-    if (['September','October','November','December'].includes(month)) return `${year}-${year + 1}`
-    return `${year - 1}-${year}`
-  }
-  return `${year}-${year + 1}`
+  if (SEASON_START_MONTHS.includes(month)) return `${year}-${year + 1}`
+  return `${year - 1}-${year}`
 }
 
 export default function EntryPage() {
