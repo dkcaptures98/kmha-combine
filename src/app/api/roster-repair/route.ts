@@ -12,7 +12,12 @@ type CsvAthlete = {
 }
 
 function cleanCell(value: unknown) {
-  return String(value ?? '').trim().replace(/^"|"$/g, '').trim()
+  return String(value ?? '')
+    .replace(/^\uFEFF/, '')
+    .replace(/�/g, '')
+    .trim()
+    .replace(/^"|"$/g, '')
+    .trim()
 }
 
 function parseCsvLine(line: string) {
@@ -45,8 +50,20 @@ function normalizeHeader(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-function normalizeName(value: string) {
-  return cleanCell(value).replace(/\s+/g, ' ').toUpperCase()
+function displayName(value: string) {
+  return cleanCell(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[‘’´`]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[^a-zA-Z '\-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+}
+
+function nameKey(value: string) {
+  return displayName(value).replace(/[^A-Z]/g, '')
 }
 
 function normalizeTeam(rawTeam: string) {
@@ -103,14 +120,14 @@ function parseRosterCsv(csvText: string, season: string) {
 
   for (const line of lines.slice(1)) {
     const cells = parseCsvLine(line)
-    const first_name = normalizeName(cells[firstIdx])
-    const last_name = normalizeName(cells[lastIdx])
+    const first_name = displayName(cells[firstIdx])
+    const last_name = displayName(cells[lastIdx])
     const team = normalizeTeam(cells[teamIdx])
 
     if (!first_name || !last_name || !team) continue
 
     const row = { first_name, last_name, team, season, active: true }
-    const key = `${season}|${team}|${first_name}|${last_name}`
+    const key = `${season}|${team}|${nameKey(first_name)}|${nameKey(last_name)}`
 
     if (seen.has(key)) {
       duplicates.push(row)
@@ -148,7 +165,7 @@ export async function POST(request: Request) {
     const existing = existingRows || []
     const byExactKey = new Map<string, any>()
     existing.forEach(row => {
-      byExactKey.set(`${row.team}|${normalizeName(row.first_name)}|${normalizeName(row.last_name)}`, row)
+      byExactKey.set(`${row.team}|${nameKey(row.first_name)}|${nameKey(row.last_name)}`, row)
     })
 
     const toInsert: CsvAthlete[] = []
@@ -156,7 +173,7 @@ export async function POST(request: Request) {
     const unchanged: any[] = []
 
     for (const athlete of csvAthletes) {
-      const key = `${athlete.team}|${athlete.first_name}|${athlete.last_name}`
+      const key = `${athlete.team}|${nameKey(athlete.first_name)}|${nameKey(athlete.last_name)}`
       const current = byExactKey.get(key)
 
       if (!current) {
@@ -185,7 +202,7 @@ export async function POST(request: Request) {
         toInsert: toInsert.length,
         finalExpectedSeasonRowsAtLeast: existing.length + toInsert.length,
         teamCounts,
-        duplicateExamples: duplicates.slice(0, 20),
+        duplicateExamples: duplicates.slice(0, 50),
       })
     }
 
