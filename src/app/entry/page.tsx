@@ -7,6 +7,15 @@ import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 const YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030]
+const IN_SEASON_MONTHS = ['September','October','November','December','January','February','March']
+
+function getRosterSeason(year: number, month: string) {
+  if (IN_SEASON_MONTHS.includes(month)) {
+    if (['September','October','November','December'].includes(month)) return `${year}-${year + 1}`
+    return `${year - 1}-${year}`
+  }
+  return `${year}-${year + 1}`
+}
 
 export default function EntryPage() {
   const supabase = createClient()
@@ -14,6 +23,7 @@ export default function EntryPage() {
   const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(ALL_MONTHS[new Date().getMonth()])
+  const rosterSeason = getRosterSeason(selectedYear, selectedMonth)
   const [scores, setScores] = useState<Record<string, Partial<Record<TestType, string>>>>({})
   const [entryIds, setEntryIds] = useState<Record<string, string>>({})
   const [saveStatus, setSaveStatus] = useState<Record<string, 'saving'|'saved'|'deleted'|'error'|''>>({})
@@ -45,7 +55,7 @@ export default function EntryPage() {
   useEffect(() => {
     if (!selectedTeam) return
     setEntryError('')
-    fetch(`/api/athletes?team=${selectedTeam}`)
+    fetch(`/api/athletes?team=${selectedTeam}&season=${rosterSeason}`)
       .then(r => r.json())
       .then(data => {
         setAthletes(Array.isArray(data) ? data : [])
@@ -56,9 +66,9 @@ export default function EntryPage() {
         setAthletes([])
         setScores({})
         setEntryIds({})
-        setEntryError('Could not load athletes for this team.')
+        setEntryError('Could not load athletes for this team and season.')
       })
-  }, [selectedTeam])
+  }, [selectedTeam, rosterSeason])
 
   useEffect(() => {
     if (!selectedTeam) return
@@ -72,7 +82,6 @@ export default function EntryPage() {
       .then((data: any[]) => {
         const s: Record<string, Partial<Record<TestType, string>>> = {}
         const ids: Record<string, string> = {}
-
         if (Array.isArray(data)) {
           data.forEach(e => {
             if (!s[e.athlete_id]) s[e.athlete_id] = {}
@@ -80,7 +89,6 @@ export default function EntryPage() {
             ids[`${e.athlete_id}-${e.test_type}`] = e.id
           })
         }
-
         setScores(s)
         setEntryIds(ids)
       })
@@ -100,10 +108,7 @@ export default function EntryPage() {
   }
 
   async function getAuthHeaders() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
+    const { data: { session } } = await supabase.auth.getSession()
     return {
       'Content-Type': 'application/json',
       ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
@@ -112,77 +117,41 @@ export default function EntryPage() {
 
   function setScore(athleteId: string, test: TestType, value: string, name: string, team: string) {
     if (isLocked(test)) return
-
     setEntryError('')
     setScores(prev => ({ ...prev, [athleteId]: { ...(prev[athleteId] || {}), [test]: value } }))
-
     const key = `${athleteId}-${test}`
     clearTimeout(timers.current[key])
 
     timers.current[key] = setTimeout(async () => {
       setSaveStatus(p => ({ ...p, [key]: 'saving' }))
-
       try {
         if (value === '') {
           const existingId = entryIds[key]
-
           if (existingId) {
             const res = await fetch(`/api/entries?id=${existingId}`, { method: 'DELETE', headers: await getAuthHeaders() })
             const payload = await res.json().catch(() => ({}))
-
-            if (!res.ok) {
-              throw new Error(payload?.error || 'Could not delete entry.')
-            }
-
-            setEntryIds(prev => {
-              const n = { ...prev }
-              delete n[key]
-              return n
-            })
-
+            if (!res.ok) throw new Error(payload?.error || 'Could not delete entry.')
+            setEntryIds(prev => { const n = { ...prev }; delete n[key]; return n })
             setSaveStatus(p => ({ ...p, [key]: 'deleted' }))
           } else {
             setSaveStatus(p => ({ ...p, [key]: '' }))
           }
-
           return
         }
-
         if (!Number.isFinite(parseFloat(value))) {
           setSaveStatus(p => ({ ...p, [key]: '' }))
           return
         }
-
         const existingId = entryIds[key]
         const id = existingId || generateId()
-
         const res = await fetch('/api/entries', {
           method: 'POST',
           headers: await getAuthHeaders(),
-          body: JSON.stringify([
-            {
-              id,
-              athlete_id: athleteId,
-              athlete_name: name,
-              team,
-              score: parseFloat(value),
-              month: selectedMonth,
-              year: selectedYear,
-              test_type: test,
-            },
-          ]),
+          body: JSON.stringify([{ id, athlete_id: athleteId, athlete_name: name, team, score: parseFloat(value), month: selectedMonth, year: selectedYear, test_type: test }]),
         })
-
         const payload = await res.json().catch(() => ({}))
-
-        if (!res.ok) {
-          throw new Error(payload?.error || 'Could not save entry.')
-        }
-
-        if (!existingId) {
-          setEntryIds(prev => ({ ...prev, [key]: id }))
-        }
-
+        if (!res.ok) throw new Error(payload?.error || 'Could not save entry.')
+        if (!existingId) setEntryIds(prev => ({ ...prev, [key]: id }))
         setSaveStatus(p => ({ ...p, [key]: 'saved' }))
       } catch (err) {
         setSaveStatus(p => ({ ...p, [key]: 'error' }))
@@ -199,45 +168,35 @@ export default function EntryPage() {
         <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, letterSpacing: '0.06em', color: 'white' }}>DATA ENTRY</h1>
       </div>
 
-      {/* Schedule banner for entry_only */}
       {isEntryOnly && !scheduleLoading && (
         <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: '10px', background: scheduledTests.length > 0 ? 'rgba(59,130,246,0.08)' : 'rgba(239,68,68,0.06)', border: `1px solid ${scheduledTests.length > 0 ? 'rgba(59,130,246,0.25)' : 'rgba(239,68,68,0.2)'}` }}>
           {scheduledTests.length > 0
-            ? <p style={{ margin: 0, fontSize: '13px', color: '#60a5fa' }}>
-                📅 This week: <strong>{scheduledTests.map(t => TEST_LABELS[t as TestType]).join(', ')}</strong> — only these columns are unlocked
-              </p>
-            : <p style={{ margin: 0, fontSize: '13px', color: '#f87171' }}>
-                ⚠️ No tests scheduled this week — all columns are locked. Contact your admin.
-              </p>}
+            ? <p style={{ margin: 0, fontSize: '13px', color: '#60a5fa' }}>📅 This week: <strong>{scheduledTests.map(t => TEST_LABELS[t as TestType]).join(', ')}</strong> — only these columns are unlocked</p>
+            : <p style={{ margin: 0, fontSize: '13px', color: '#f87171' }}>⚠️ No tests scheduled this week — all columns are locked. Contact your admin.</p>}
         </div>
       )}
 
-      {entryError && (
-        <div style={{ marginBottom: '20px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontSize: '13px' }}>
-          {entryError}
-        </div>
-      )}
+      {entryError && <div style={{ marginBottom: '20px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontSize: '13px' }}>{entryError}</div>}
 
       <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Team</label>
             <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)} className="kmha-select w-full">
-              <option value="">Select team...</option>
-              {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+              <option value="">Select team...</option>{TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Month</label>
-            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value as any)} className="kmha-select w-full">
-              {ALL_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value as any)} className="kmha-select w-full">{ALL_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}</select>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Year</label>
-            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="kmha-select w-full">
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="kmha-select w-full">{YEARS.map(y => <option key={y} value={y}>{y}</option>)}</select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Roster Season</label>
+            <div style={{ background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'#60a5fa', borderRadius:'6px', padding:'8px 12px', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:600 }}>{rosterSeason}</div>
           </div>
         </div>
       </div>
@@ -245,89 +204,19 @@ export default function EntryPage() {
       {selectedTeam && athletes.length > 0 && (
         <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', overflow: 'hidden' }}>
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam}</h2>
-              <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>{selectedMonth} {selectedYear} · {athletes.length} athletes</p>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.6)' }} />
-              <span style={{ fontSize: '11px', color: '#34d399' }}>Live</span>
-            </div>
+            <div><h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} · {rosterSeason}</h2><p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>{selectedMonth} {selectedYear} · {athletes.length} athletes</p></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.6)' }} /><span style={{ fontSize: '11px', color: '#34d399' }}>Live</span></div>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' as const }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: '10px 16px', textAlign: 'left' as const, fontSize: '11px', fontWeight: 600, color: '#334155', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '1px solid rgba(59,130,246,0.08)', background: 'rgba(5,15,35,0.4)' }}>Athlete</th>
-                  {TEST_TYPES.map(test => {
-                    const locked = isLocked(test)
-                    return (
-                      <th key={test} style={{ padding: '10px 16px', textAlign: 'center' as const, fontSize: '11px', fontWeight: 600, color: locked ? '#1e3a5f' : '#60a5fa', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '1px solid rgba(59,130,246,0.08)', background: locked ? 'rgba(5,10,20,0.6)' : 'rgba(59,130,246,0.06)' }}>
-                        {TEST_LABELS[test]}
-                        {locked && <span style={{ marginLeft: '4px', fontSize: '9px' }}>🔒</span>}
-                        <br/><span style={{ fontSize: '10px', textTransform: 'none' as const, letterSpacing: 0, color: locked ? '#1e3a5f' : '#334155' }}>({TEST_UNITS[test]})</span>
-                      </th>
-                    )
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {[...athletes].sort((a, b) => a.last_name.localeCompare(b.last_name)).map(athlete => (
-                  <tr key={athlete.id} style={{ borderBottom: '1px solid rgba(59,130,246,0.05)' }}>
-                    <td style={{ padding: '8px 16px', color: '#e2e8f0', fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' as const }}>
-                      {athlete.last_name}, {athlete.first_name}
-                    </td>
-                    {TEST_TYPES.map(test => {
-                      const key = `${athlete.id}-${test}`
-                      const status = saveStatus[key]
-                      const locked = isLocked(test)
-                      const hasValue = scores[athlete.id]?.[test] !== undefined && scores[athlete.id]?.[test] !== ''
-                      return (
-                        <td key={test} style={{ padding: '6px 8px', textAlign: 'center' as const, background: locked ? 'rgba(5,10,20,0.4)' : 'transparent' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <input
-                              type="number" step="0.01" min="0"
-                              value={scores[athlete.id]?.[test] ?? ''}
-                              onChange={e => setScore(athlete.id, test, e.target.value, `${athlete.first_name} ${athlete.last_name}`, athlete.team)}
-                              disabled={locked}
-                              style={{
-                                width: '80px',
-                                background: locked ? 'rgba(5,10,20,0.6)' : hasValue ? 'rgba(5,15,35,0.9)' : 'rgba(5,15,35,0.4)',
-                                border: `1px solid ${locked ? 'rgba(30,58,95,0.3)' : status === 'saved' ? 'rgba(52,211,153,0.5)' : status === 'deleted' ? 'rgba(239,68,68,0.4)' : hasValue ? 'rgba(59,130,246,0.3)' : 'rgba(59,130,246,0.1)'}`,
-                                color: locked ? '#1e3a5f' : 'white',
-                                borderRadius: '6px', padding: '5px 8px', fontSize: '13px',
-                                textAlign: 'center' as const, outline: 'none',
-                                cursor: locked ? 'not-allowed' : 'text',
-                              }}
-                              placeholder="—"
-                            />
-                            {!locked && (
-                              <span style={{ fontSize: '11px', width: '14px', color: status === 'saving' ? '#64748b' : status === 'saved' ? '#34d399' : status === 'deleted' || status === 'error' ? '#f87171' : 'transparent' }}>
-                                {status === 'saving' ? '…' : status === 'saved' ? '✓' : status === 'deleted' || status === 'error' ? '✕' : '·'}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
+              <thead><tr><th style={{ padding: '10px 16px', textAlign: 'left' as const, fontSize: '11px', fontWeight: 600, color: '#334155', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '1px solid rgba(59,130,246,0.08)', background: 'rgba(5,15,35,0.4)' }}>Athlete</th>{TEST_TYPES.map(test => { const locked = isLocked(test); return <th key={test} style={{ padding: '10px 16px', textAlign: 'center' as const, fontSize: '11px', fontWeight: 600, color: locked ? '#1e3a5f' : '#60a5fa', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '1px solid rgba(59,130,246,0.08)', background: locked ? 'rgba(5,10,20,0.6)' : 'rgba(59,130,246,0.06)' }}>{TEST_LABELS[test]}{locked && <span style={{ marginLeft: '4px', fontSize: '9px' }}>🔒</span>}<br/><span style={{ fontSize: '10px', textTransform: 'none' as const, letterSpacing: 0, color: locked ? '#1e3a5f' : '#334155' }}>({TEST_UNITS[test]})</span></th> })}</tr></thead>
+              <tbody>{[...athletes].sort((a, b) => a.last_name.localeCompare(b.last_name)).map(athlete => <tr key={athlete.id} style={{ borderBottom: '1px solid rgba(59,130,246,0.05)' }}><td style={{ padding: '8px 16px', color: '#e2e8f0', fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' as const }}>{athlete.last_name}, {athlete.first_name}</td>{TEST_TYPES.map(test => { const key = `${athlete.id}-${test}`; const status = saveStatus[key]; const locked = isLocked(test); const hasValue = scores[athlete.id]?.[test] !== undefined && scores[athlete.id]?.[test] !== ''; return <td key={test} style={{ padding: '6px 8px', textAlign: 'center' as const, background: locked ? 'rgba(5,10,20,0.4)' : 'transparent' }}><div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><input type="number" step="0.01" min="0" value={scores[athlete.id]?.[test] ?? ''} onChange={e => setScore(athlete.id, test, e.target.value, `${athlete.first_name} ${athlete.last_name}`, athlete.team)} disabled={locked} style={{ width: '80px', background: locked ? 'rgba(5,10,20,0.6)' : hasValue ? 'rgba(5,15,35,0.9)' : 'rgba(5,15,35,0.4)', border: `1px solid ${locked ? 'rgba(30,58,95,0.3)' : status === 'saved' ? 'rgba(52,211,153,0.5)' : status === 'deleted' ? 'rgba(239,68,68,0.4)' : hasValue ? 'rgba(59,130,246,0.3)' : 'rgba(59,130,246,0.1)'}`, color: locked ? '#1e3a5f' : 'white', borderRadius: '6px', padding: '5px 8px', fontSize: '13px', textAlign: 'center' as const, outline: 'none', cursor: locked ? 'not-allowed' : 'text' }} placeholder="—" />{!locked && <span style={{ fontSize: '11px', width: '14px', color: status === 'saving' ? '#64748b' : status === 'saved' ? '#34d399' : status === 'deleted' || status === 'error' ? '#f87171' : 'transparent' }}>{status === 'saving' ? '…' : status === 'saved' ? '✓' : status === 'deleted' || status === 'error' ? '✕' : '·'}</span>}</div></td> })}</tr>)}</tbody>
             </table>
           </div>
         </div>
       )}
-
-      {selectedTeam && athletes.length === 0 && (
-        <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}>
-          <p style={{ color: '#475569', margin: 0 }}>No athletes found for {selectedTeam}</p>
-        </div>
-      )}
-      {!selectedTeam && (
-        <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}>
-          <p style={{ color: '#475569', margin: 0 }}>Select a team to begin</p>
-        </div>
-      )}
+      {selectedTeam && athletes.length === 0 && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>No athletes found for {selectedTeam} in {rosterSeason}</p></div>}
+      {!selectedTeam && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>Select a team to begin</p></div>}
     </div>
   )
 }
