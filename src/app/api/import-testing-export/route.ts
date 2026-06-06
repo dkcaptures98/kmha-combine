@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
@@ -74,7 +73,8 @@ export async function POST(request: Request) {
     const yearIdx = findColumn(headers, ['year'])
     if ([firstIdx,lastIdx,teamIdx,testIdx,scoreIdx,monthIdx,yearIdx].some(i => i < 0)) return NextResponse.json({ error: `CSV must include first_name, last_name, team, test, score, month, year. Found: ${headers.join(', ')}` }, { status: 400 })
 
-    const rawRows = lines.slice(1).map(parseCsvLine).map(cells => ({
+    const rawRows = lines.slice(1).map(parseCsvLine).map((cells, index) => ({
+      source_index: index,
       first_name: displayName(cells[firstIdx]),
       last_name: displayName(cells[lastIdx]),
       team: normalizeTeam(cells[teamIdx]),
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
       const athlete = athletesByKey.get(`${r.team}|${personKey(r.first_name, r.last_name)}`)
       if (!athlete) return null
       return {
-        id: `${season}-${r.team}-${r.first_name}-${r.last_name}-${r.test_type}-${r.month}-${r.year}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        id: `${season}-${r.team}-${r.first_name}-${r.last_name}-${r.test_type}-${r.score}-${r.month}-${r.year}-${r.source_index}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
         athlete_id: athlete.id,
         athlete_name: `${r.first_name} ${r.last_name}`,
         team: r.team,
@@ -106,12 +106,7 @@ export async function POST(request: Request) {
       }
     }).filter(Boolean) as any[]
 
-    const entryKey = (e: any) => `${e.athlete_id}|${e.team}|${e.test_type}|${e.month}|${e.year}`
-    const unique = new Map<string, any>()
-    entries.forEach(e => unique.set(entryKey(e), e))
-    const uniqueEntries = Array.from(unique.values())
-
-    if (dryRun) return NextResponse.json({ dryRun: true, season, csvRowsRead: rawRows.length, uniqueAthletesInCsv: athleteKeys.size, missingAthletes: missingAthletes.length, entriesPrepared: uniqueEntries.length, duplicatesCollapsed: entries.length - uniqueEntries.length, missingExamples: missingAthletes.slice(0, 30) })
+    if (dryRun) return NextResponse.json({ dryRun: true, season, csvRowsRead: rawRows.length, uniqueAthletesInCsv: athleteKeys.size, missingAthletes: missingAthletes.length, entriesPrepared: entries.length, duplicatesCollapsed: 0, missingExamples: missingAthletes.slice(0, 30) })
 
     if (wipeExisting) {
       const years = season.split('-').map(Number)
@@ -124,11 +119,11 @@ export async function POST(request: Request) {
     }
 
     const chunkSize = 500
-    for (let i = 0; i < uniqueEntries.length; i += chunkSize) {
-      const { error } = await admin.from('combine_entries').upsert(uniqueEntries.slice(i, i + chunkSize), { onConflict: 'id' })
+    for (let i = 0; i < entries.length; i += chunkSize) {
+      const { error } = await admin.from('combine_entries').upsert(entries.slice(i, i + chunkSize), { onConflict: 'id' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     }
-    return NextResponse.json({ dryRun: false, season, imported: uniqueEntries.length, missingAthletes: missingAthletes.length, duplicatesCollapsed: entries.length - uniqueEntries.length })
+    return NextResponse.json({ dryRun: false, season, imported: entries.length, missingAthletes: missingAthletes.length, duplicatesCollapsed: 0 })
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Testing export import failed' }, { status: 500 })
   }
