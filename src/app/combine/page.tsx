@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 // U10-12 age groups get ChinHold, U13-18 get Chinups + 0.2 Mile
 const U10_12 = ['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA']
 const SEASONS = ['2024-2025','2025-2026','2026-2027','2027-2028']
-const COMBINE_ROSTER_PHASE = 'offseason'
+const ROSTER_PHASES = ['offseason', 'inseason']
 
 interface CombineResult {
   id?: string
@@ -55,6 +55,7 @@ export default function CombinePage() {
   const [results, setResults] = useState<Record<string, CombineResult>>({})
   const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedSeason, setSelectedSeason] = useState('2026-2027')
+  const [selectedRosterPhase, setSelectedRosterPhase] = useState('offseason')
   const [role, setRole] = useState<UserRole | null>(null)
   const [lock, setLock] = useState<LockInfo | null>(null)
   const [saveStatus, setSaveStatus] = useState<Record<string, 'saving'|'saved'|'error'|''>>({})
@@ -83,7 +84,7 @@ export default function CombinePage() {
     if (!selectedTeam) return
     setLoading(true)
     Promise.all([
-      fetch(`/api/athletes?team=${selectedTeam}&season=${selectedSeason}&roster_phase=${COMBINE_ROSTER_PHASE}`).then(r => r.json()),
+      fetch(`/api/athletes?team=${selectedTeam}&season=${selectedSeason}&roster_phase=${selectedRosterPhase}`).then(r => r.json()),
       fetch(`/api/combine?team=${selectedTeam}&season=${selectedSeason}`).then(r => r.json()),
     ]).then(([aths, res]) => {
       setAthletes(Array.isArray(aths) ? aths : [])
@@ -92,7 +93,7 @@ export default function CombinePage() {
       setResults(map)
       setLoading(false)
     })
-  }, [selectedTeam, selectedSeason])
+  }, [selectedTeam, selectedSeason, selectedRosterPhase])
 
   async function loadLocks() {
     const data = await fetch('/api/combine-lock').then(r => r.json())
@@ -181,26 +182,20 @@ export default function CombinePage() {
 
   return (
     <div style={{ paddingBottom: '48px' }}>
-      {/* Page header */}
       <div style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', padding: '24px 0 20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, letterSpacing: '0.06em', color: 'white' }}>ANNUAL COMBINE</h1>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Lock status badge */}
           {lock?.locked ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '6px 12px' }}>
               <span style={{ fontSize: '12px' }}>🔒</span>
-              <span style={{ fontSize: '12px', color: '#f87171', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                'OPEN FOR ENTRY'
-              </span>
+              <span style={{ fontSize: '12px', color: '#f87171', fontFamily: 'var(--font-display)', fontWeight: 600 }}>'OPEN FOR ENTRY'</span>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: '6px', padding: '6px 12px' }}>
               <span style={{ fontSize: '12px' }}>✓</span>
-              <span style={{ fontSize: '12px', color: '#34d399', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                'OPEN FOR ENTRY'
-              </span>
+              <span style={{ fontSize: '12px', color: '#34d399', fontFamily: 'var(--font-display)', fontWeight: 600 }}>'OPEN FOR ENTRY'</span>
             </div>
           )}
           {isAdmin && (
@@ -211,21 +206,18 @@ export default function CombinePage() {
         </div>
       </div>
 
-      {/* Lock manager panel (admin only) */}
       {showLockManager && isAdmin && (
         <div style={{ background: 'rgba(10,20,40,0.9)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '10px', padding: '20px', marginBottom: '20px' }}>
           <h3 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 600, color: '#60a5fa', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Combine Lock Settings — {selectedSeason}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '11px', color: '#475569', marginBottom: '6px', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Combine Date</label>
-              <input type="date" defaultValue={lock?.combine_date || ''} onChange={e => setNewLockDate(e.target.value)}
-                style={{ width: '100%', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', outline: 'none', colorScheme: 'dark' }} />
+              <input type="date" defaultValue={lock?.combine_date || ''} onChange={e => setNewLockDate(e.target.value)} style={{ width: '100%', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', outline: 'none', colorScheme: 'dark' }} />
               <p style={{ margin: '4px 0 0', fontSize: '10px', color: '#334155' }}>Entry opens the day of — locks automatically otherwise</p>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '11px', color: '#475569', marginBottom: '6px', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Notes</label>
-              <input type="text" defaultValue={lock?.notes || ''} onChange={e => setNewLockNotes(e.target.value)} placeholder="e.g. Kitchener Aud, 9am start"
-                style={{ width: '100%', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', outline: 'none' }} />
+              <input type="text" defaultValue={lock?.notes || ''} onChange={e => setNewLockNotes(e.target.value)} placeholder="e.g. Kitchener Aud, 9am start" style={{ width: '100%', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', outline: 'none' }} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -237,7 +229,6 @@ export default function CombinePage() {
         </div>
       )}
 
-      {/* Combine date banner */}
       {lock?.combine_date && (
         <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '10px', padding: '14px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '20px' }}>📅</span>
@@ -248,7 +239,6 @@ export default function CombinePage() {
         </div>
       )}
 
-      {/* Filters */}
       <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
           <div>
@@ -266,40 +256,35 @@ export default function CombinePage() {
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Roster Phase</label>
-            <div style={{ background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.25)', color:'#34d399', borderRadius:'6px', padding:'8px 12px', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:600 }}>offseason</div>
+            <select value={selectedRosterPhase} onChange={e => setSelectedRosterPhase(e.target.value)} style={{ width: '100%', background: 'rgba(5,15,35,0.8)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', appearance: 'none' as const, outline: 'none' }}>
+              {ROSTER_PHASES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
           {selectedTeam && (
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
               <div style={{ padding: '6px 12px', background: isU12Team ? 'rgba(52,211,153,0.1)' : 'rgba(59,130,246,0.1)', border: `1px solid ${isU12Team ? 'rgba(52,211,153,0.3)' : 'rgba(59,130,246,0.3)'}`, borderRadius: '6px' }}>
-                <p style={{ margin: 0, fontSize: '11px', color: isU12Team ? '#34d399' : '#60a5fa', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                  {isU12Team ? 'U10-12: Chin Hold' : 'U13-18: Chin-Ups + 0.2 Mile'}
-                </p>
+                <p style={{ margin: 0, fontSize: '11px', color: isU12Team ? '#34d399' : '#60a5fa', fontFamily: 'var(--font-display)', fontWeight: 600 }}>{isU12Team ? 'U10-12: Chin Hold' : 'U13-18: Chin-Ups + 0.2 Mile'}</p>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Locked notice for non-admins */}
       {isLocked && (
         <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '24px' }}>🔒</span>
           <div>
             <p style={{ margin: '0 0 2px', fontSize: '14px', fontWeight: 700, color: '#f87171', fontFamily: 'var(--font-display)' }}>Combine Entry is Locked</p>
-            <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>
-              Data entry is only permitted on the scheduled combine date{lock?.combine_date ? ` (${lock.combine_date})` : ''}. Today is {today}. Contact your admin if you need access.
-            </p>
+            <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>Data entry is only permitted on the scheduled combine date{lock?.combine_date ? ` (${lock.combine_date})` : ''}. Today is {today}. Contact your admin if you need access.</p>
           </div>
         </div>
       )}
 
-      {/* Entry table */}
       {selectedTeam && !loading && athletes.length > 0 && (
         <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', overflow: 'hidden' }}>
-          {/* Table header */}
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(59,130,246,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} — {selectedSeason} · offseason</h2>
+              <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} — {selectedSeason} · {selectedRosterPhase}</h2>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#475569' }}>{athletes.length} athletes · auto-saves as you type{isAdmin && lock?.locked ? ' · Admin override active' : ''}</p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -312,25 +297,12 @@ export default function CombinePage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' as const, minWidth: '900px' }}>
               <thead>
                 <tr style={{ background: 'rgba(5,15,35,0.6)' }}>
-                  {/* Athlete */}
                   <th style={{ padding: '10px 12px', textAlign: 'left' as const, fontSize: '10px', fontWeight: 700, color: '#60a5fa', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', minWidth: '140px' }}>Athlete</th>
-                  
-                  {/* Sprint */}
                   <th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#fbbf24', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(251,191,36,0.35)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '80px' }}>10m Sprint<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>sec</span></th>
-
-                  {/* Height group */}
                   <th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Height</th>
-                  
-                  {/* Wingspan group */}
                   <th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Wingspan</th>
-
-                  {/* Vertical */}
                   <th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '70px' }}>Vertical<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>cm</span></th>
-
-                  {/* Broad Jump group */}
                   <th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Broad Jump</th>
-
-                  {/* Age-specific tests */}
                   {isU12Team ? (
                     <th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#34d399', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(52,211,153,0.4)', borderLeft: '2px solid rgba(52,211,153,0.3)', minWidth: '80px' }}>Chin Hold<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>seconds</span></th>
                   ) : (
@@ -342,26 +314,13 @@ export default function CombinePage() {
                   )}
                   <th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '30px' }}></th>
                 </tr>
-                {/* Sub-headers for ft/in columns */}
                 <tr style={{ background: 'rgba(5,15,35,0.3)' }}>
                   <th style={{ padding: '4px 12px', borderBottom: '1px solid rgba(59,130,246,0.1)' }}></th>
                   <th style={{ padding: '4px 6px', borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>
-                  {['ft','in','ft','in'].map((label, i) => (
-                    <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0||i===2 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>
-                  ))}
+                  {['ft','in','ft','in'].map((label, i) => <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0||i===2 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>)}
                   <th style={{ padding: '4px 6px', borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>
-                  {['ft','in'].map((label, i) => (
-                    <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>
-                  ))}
-                  {isU12Team ? (
-                    <th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '2px solid rgba(52,211,153,0.3)' }}></th>
-                  ) : (
-                    <>
-                      <th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '2px solid rgba(59,130,246,0.3)' }}></th>
-                      <th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>
-                      <th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>
-                    </>
-                  )}
+                  {['ft','in'].map((label, i) => <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>)}
+                  {isU12Team ? <th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '2px solid rgba(52,211,153,0.3)' }}></th> : <><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '2px solid rgba(59,130,246,0.3)' }}></th><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th></>}
                   <th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>
                 </tr>
               </thead>
@@ -383,20 +342,8 @@ export default function CombinePage() {
                       <td style={{ padding: '4px 6px' }}><input type="number" step="0.1" value={r.vertical ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'vertical', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
                       <td style={{ padding: '4px 4px' }}><input type="number" min="0" value={r.broad_jump_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'broad_jump_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td>
                       <td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.broad_jump_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'broad_jump_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td>
-                      {isU12Team ? (
-                        <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(52,211,153,0.15)' }}><input type="number" step="0.1" value={r.chinup_hold ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinup_hold', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
-                      ) : (
-                        <>
-                          <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(59,130,246,0.15)' }}><input type="number" min="0" value={r.chinups ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinups', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
-                          <td style={{ padding: '4px 6px' }}><input type="text" value={r.mile02_time ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_time', e.target.value)} disabled={disabled} style={inputStyle} placeholder="0:00" /></td>
-                          <td style={{ padding: '4px 6px' }}><input type="number" value={r.mile02_watts ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_watts', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
-                        </>
-                      )}
-                      <td style={{ padding: '4px 6px', textAlign: 'center' as const, width: '30px' }}>
-                        {status === 'saving' && <span style={{ color: '#64748b', fontSize: '10px' }}>…</span>}
-                        {status === 'saved' && <span style={{ color: '#34d399', fontSize: '10px' }}>✓</span>}
-                        {status === 'error' && <span style={{ color: '#f87171', fontSize: '10px' }}>✕</span>}
-                      </td>
+                      {isU12Team ? <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(52,211,153,0.15)' }}><input type="number" step="0.1" value={r.chinup_hold ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinup_hold', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td> : <><td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(59,130,246,0.15)' }}><input type="number" min="0" value={r.chinups ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinups', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td><td style={{ padding: '4px 6px' }}><input type="text" value={r.mile02_time ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_time', e.target.value)} disabled={disabled} style={inputStyle} placeholder="0:00" /></td><td style={{ padding: '4px 6px' }}><input type="number" value={r.mile02_watts ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_watts', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td></>}
+                      <td style={{ padding: '4px 6px', textAlign: 'center' as const, width: '30px' }}>{status === 'saving' && <span style={{ color: '#64748b', fontSize: '10px' }}>…</span>}{status === 'saved' && <span style={{ color: '#34d399', fontSize: '10px' }}>✓</span>}{status === 'error' && <span style={{ color: '#f87171', fontSize: '10px' }}>✕</span>}</td>
                     </tr>
                   )
                 })}
@@ -406,17 +353,8 @@ export default function CombinePage() {
         </div>
       )}
 
-      {selectedTeam && !loading && athletes.length === 0 && (
-        <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}>
-          <p style={{ color: '#475569', margin: 0 }}>No offseason athletes found for {selectedTeam} in {selectedSeason}</p>
-        </div>
-      )}
-
-      {!selectedTeam && (
-        <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}>
-          <p style={{ color: '#475569', margin: 0 }}>Select a team to begin entering combine results</p>
-        </div>
-      )}
+      {selectedTeam && !loading && athletes.length === 0 && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>No {selectedRosterPhase} athletes found for {selectedTeam} in {selectedSeason}</p></div>}
+      {!selectedTeam && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>Select a team to begin entering combine results</p></div>}
     </div>
   )
 }
