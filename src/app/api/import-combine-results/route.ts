@@ -102,9 +102,11 @@ export async function POST(request: Request) {
         height_in: height.inch,
         wingspan_ft: wingspan.ft,
         wingspan_in: wingspan.inch,
+        has_results: false,
       }
+      payload.has_results = hasAnyResult(payload)
       detectedRows.push(payload)
-      if (hasAnyResult(payload)) prepared.push(payload)
+      prepared.push(payload)
     }
 
     const db = admin()
@@ -139,8 +141,9 @@ export async function POST(request: Request) {
         mile02_watts: row.mile02_watts,
       })
     }
+    const rowsWithResults = prepared.filter(r => r.has_results).length
     const teamCounts = matched.reduce<Record<string, number>>((acc, row) => { acc[row.team] = (acc[row.team] || 0) + 1; return acc }, {})
-    if (dryRun) return NextResponse.json({ dryRun: true, season, roster_phase: rosterPhase, teamsDetected: [selectedTeam], rowsWithNames: detectedRows.length, rowsWithResults: prepared.length, matched: matched.length, missing: missing.length, missingExamples: missing.slice(0, 30), readyToImport: matched.length, teamCounts })
+    if (dryRun) return NextResponse.json({ dryRun: true, season, roster_phase: rosterPhase, teamsDetected: [selectedTeam], rowsWithNames: detectedRows.length, rowsWithResults, matched: matched.length, missing: missing.length, missingExamples: missing.slice(0, 30), readyToImport: matched.length, teamCounts })
     if (matched.length > 0) {
       const { error } = await db.from('combine_results').upsert(matched, { onConflict: 'athlete_id,season' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
