@@ -44,7 +44,6 @@ export default function Navbar() {
       { href: '/import', label: 'Import' },
       { href: '/roster-import', label: 'Roster Import' },
       { href: '/admin', label: 'Admin' },
-      { href: '/roster-sync', label: 'Roster Sync' },
       { href: '/audit', label: 'Audit Log' },
     ],
     admin: [
@@ -60,7 +59,6 @@ export default function Navbar() {
       { href: '/import', label: 'Import' },
       { href: '/roster-import', label: 'Roster Import' },
       { href: '/admin', label: 'Admin' },
-      { href: '/roster-sync', label: 'Roster Sync' },
     ],
     data_entry: [
       { href: '/entry', label: 'Data Entry' },
