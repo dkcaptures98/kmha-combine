@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 // U10-12 age groups get ChinHold, U13-18 get Chinups + 0.2 Mile
 const U10_12 = ['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA']
 const SEASONS = ['2024-2025','2025-2026','2026-2027','2027-2028']
+const COMBINE_ROSTER_PHASE = 'offseason'
 
 interface CombineResult {
   id?: string
@@ -53,7 +54,7 @@ export default function CombinePage() {
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [results, setResults] = useState<Record<string, CombineResult>>({})
   const [selectedTeam, setSelectedTeam] = useState('')
-  const [selectedSeason, setSelectedSeason] = useState('2025-2026')
+  const [selectedSeason, setSelectedSeason] = useState('2026-2027')
   const [role, setRole] = useState<UserRole | null>(null)
   const [lock, setLock] = useState<LockInfo | null>(null)
   const [saveStatus, setSaveStatus] = useState<Record<string, 'saving'|'saved'|'error'|''>>({})
@@ -82,12 +83,12 @@ export default function CombinePage() {
     if (!selectedTeam) return
     setLoading(true)
     Promise.all([
-      fetch(`/api/athletes?team=${selectedTeam}`).then(r => r.json()),
+      fetch(`/api/athletes?team=${selectedTeam}&season=${selectedSeason}&roster_phase=${COMBINE_ROSTER_PHASE}`).then(r => r.json()),
       fetch(`/api/combine?team=${selectedTeam}&season=${selectedSeason}`).then(r => r.json()),
     ]).then(([aths, res]) => {
-      setAthletes(aths)
+      setAthletes(Array.isArray(aths) ? aths : [])
       const map: Record<string, CombineResult> = {}
-      res.forEach((r: CombineResult) => { map[r.athlete_id] = r })
+      if (Array.isArray(res)) res.forEach((r: CombineResult) => { map[r.athlete_id] = r })
       setResults(map)
       setLoading(false)
     })
@@ -263,6 +264,10 @@ export default function CombinePage() {
               {SEASONS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Roster Phase</label>
+            <div style={{ background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.25)', color:'#34d399', borderRadius:'6px', padding:'8px 12px', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:600 }}>offseason</div>
+          </div>
           {selectedTeam && (
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
               <div style={{ padding: '6px 12px', background: isU12Team ? 'rgba(52,211,153,0.1)' : 'rgba(59,130,246,0.1)', border: `1px solid ${isU12Team ? 'rgba(52,211,153,0.3)' : 'rgba(59,130,246,0.3)'}`, borderRadius: '6px' }}>
@@ -294,7 +299,7 @@ export default function CombinePage() {
           {/* Table header */}
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(59,130,246,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} — {selectedSeason}</h2>
+              <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} — {selectedSeason} · offseason</h2>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#475569' }}>{athletes.length} athletes · auto-saves as you type{isAdmin && lock?.locked ? ' · Admin override active' : ''}</p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -361,89 +366,36 @@ export default function CombinePage() {
                 </tr>
               </thead>
               <tbody>
-                {[...athletes].sort((a,b) => a.last_name.localeCompare(b.last_name)).map((athlete, i) => {
-                  const r = results[athlete.id] || {}
+                {athletes.map(athlete => {
+                  const r = getResult(athlete.id)
                   const status = saveStatus[athlete.id]
-                  const inp = isLocked ? lockedInput : inputBase
-                  const name = `${athlete.first_name} ${athlete.last_name}`
-
-                  const numInput = (field: keyof CombineResult, width = '52px', placeholder = '') => (
-                    <input type="number" min="0" step="1" disabled={isLocked}
-                      value={r[field] as number ?? ''} placeholder={placeholder}
-                      onChange={e => updateField(athlete.id, name, field, e.target.value === '' ? null : parseFloat(e.target.value))}
-                      style={{ ...inp, width }} />
-                  )
+                  const disabled = isLocked
+                  const inputStyle = disabled ? lockedInput : inputBase
 
                   return (
-                    <tr key={athlete.id} style={{ borderBottom: '1px solid rgba(59,130,246,0.05)', background: i%2===0 ? 'transparent' : 'rgba(5,15,35,0.2)' }}>
-                      <td style={{ padding: '6px 12px', color: '#e2e8f0', fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' as const }}>
-                        {athlete.last_name}, {athlete.first_name}
-                      </td>
-                      
-                      {/* Sprint */}
-                      <td style={{ padding: '4px 6px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>
-                        <input type="number" min="0" step="0.01" disabled={isLocked}
-                          value={r.sprint ?? ''} placeholder="—"
-                          onChange={e => updateField(athlete.id, name, 'sprint', e.target.value === '' ? null : parseFloat(e.target.value))}
-                          style={{ ...inp, width: '64px' }} />
-                      </td>
-
-                      {/* Height ft/in */}
-                      <td style={{ padding: '4px 4px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>{numInput('height_ft','44px')}</td>
-                      <td style={{ padding: '4px 4px' }}>{numInput('height_in','44px')}</td>
-                      
-                      {/* Wingspan ft/in */}
-                      <td style={{ padding: '4px 4px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>{numInput('wingspan_ft','44px')}</td>
-                      <td style={{ padding: '4px 4px' }}>{numInput('wingspan_in','44px')}</td>
-
-                      {/* Vertical */}
-                      <td style={{ padding: '4px 6px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>
-                        <input type="number" min="0" step="0.1" disabled={isLocked}
-                          value={r.vertical ?? ''} placeholder="—"
-                          onChange={e => updateField(athlete.id, name, 'vertical', e.target.value === '' ? null : parseFloat(e.target.value))}
-                          style={{ ...inp, width: '60px' }} />
-                      </td>
-
-                      {/* Broad Jump ft/in */}
-                      <td style={{ padding: '4px 4px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>{numInput('broad_jump_ft','44px')}</td>
-                      <td style={{ padding: '4px 4px' }}>{numInput('broad_jump_in','44px')}</td>
-
-                      {/* Age-specific */}
+                    <tr key={athlete.id} style={{ borderBottom: '1px solid rgba(59,130,246,0.04)' }}>
+                      <td style={{ padding: '8px 12px', color: '#e2e8f0', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap' as const }}>{athlete.last_name}, {athlete.first_name}</td>
+                      <td style={{ padding: '4px 6px' }}><input type="number" step="0.001" value={r.sprint ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'sprint', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
+                      <td style={{ padding: '4px 4px' }}><input type="number" min="0" max="8" value={r.height_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'height_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td>
+                      <td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.height_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'height_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td>
+                      <td style={{ padding: '4px 4px' }}><input type="number" min="0" max="8" value={r.wingspan_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'wingspan_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td>
+                      <td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.wingspan_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'wingspan_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td>
+                      <td style={{ padding: '4px 6px' }}><input type="number" step="0.1" value={r.vertical ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'vertical', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
+                      <td style={{ padding: '4px 4px' }}><input type="number" min="0" value={r.broad_jump_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'broad_jump_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td>
+                      <td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.broad_jump_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'broad_jump_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td>
                       {isU12Team ? (
-                        <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(52,211,153,0.25)' }}>
-                          <input type="number" min="0" step="0.1" disabled={isLocked}
-                            value={r.chinup_hold ?? ''} placeholder="—"
-                            onChange={e => updateField(athlete.id, name, 'chinup_hold', e.target.value === '' ? null : parseFloat(e.target.value))}
-                            style={{ ...inp, width: '68px', borderColor: isLocked ? 'rgba(30,58,95,0.3)' : 'rgba(52,211,153,0.3)' }} />
-                        </td>
+                        <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(52,211,153,0.15)' }}><input type="number" step="0.1" value={r.chinup_hold ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinup_hold', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
                       ) : (
                         <>
-                          <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(59,130,246,0.25)' }}>
-                            <input type="number" min="0" step="1" disabled={isLocked}
-                              value={r.chinups ?? ''} placeholder="—"
-                              onChange={e => updateField(athlete.id, name, 'chinups', e.target.value === '' ? null : parseInt(e.target.value))}
-                              style={{ ...inp, width: '58px', borderColor: isLocked ? 'rgba(30,58,95,0.3)' : 'rgba(59,130,246,0.4)' }} />
-                          </td>
-                          <td style={{ padding: '4px 4px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>
-                            <input type="text" disabled={isLocked}
-                              value={r.mile02_time ?? ''} placeholder="0:00"
-                              onChange={e => updateField(athlete.id, name, 'mile02_time', e.target.value || null)}
-                              style={{ ...inp, width: '68px', borderColor: isLocked ? 'rgba(30,58,95,0.3)' : 'rgba(239,68,68,0.35)' }} />
-                          </td>
-                          <td style={{ padding: '4px 4px', borderLeft: '1px solid rgba(59,130,246,0.08)' }}>
-                            <input type="number" min="0" step="0.1" disabled={isLocked}
-                              value={r.mile02_watts ?? ''} placeholder="—"
-                              onChange={e => updateField(athlete.id, name, 'mile02_watts', e.target.value === '' ? null : parseFloat(e.target.value))}
-                              style={{ ...inp, width: '68px', borderColor: isLocked ? 'rgba(30,58,95,0.3)' : 'rgba(239,68,68,0.35)' }} />
-                          </td>
+                          <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(59,130,246,0.15)' }}><input type="number" min="0" value={r.chinups ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinups', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
+                          <td style={{ padding: '4px 6px' }}><input type="text" value={r.mile02_time ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_time', e.target.value)} disabled={disabled} style={inputStyle} placeholder="0:00" /></td>
+                          <td style={{ padding: '4px 6px' }}><input type="number" value={r.mile02_watts ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_watts', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td>
                         </>
                       )}
-
-                      {/* Save indicator */}
-                      <td style={{ padding: '4px 8px', textAlign: 'center' as const, borderLeft: '1px solid rgba(59,130,246,0.06)' }}>
-                        <span style={{ fontSize: '11px', color: status==='saving'?'#64748b':status==='saved'?'#34d399':status==='error'?'#f87171':'transparent' }}>
-                          {status==='saving'?'…':status==='saved'?'✓':status==='error'?'!':'·'}
-                        </span>
+                      <td style={{ padding: '4px 6px', textAlign: 'center' as const, width: '30px' }}>
+                        {status === 'saving' && <span style={{ color: '#64748b', fontSize: '10px' }}>…</span>}
+                        {status === 'saved' && <span style={{ color: '#34d399', fontSize: '10px' }}>✓</span>}
+                        {status === 'error' && <span style={{ color: '#f87171', fontSize: '10px' }}>✕</span>}
                       </td>
                     </tr>
                   )
@@ -454,16 +406,15 @@ export default function CombinePage() {
         </div>
       )}
 
-      {!selectedTeam && (
-        <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '64px', textAlign: 'center' }}>
-          <p style={{ fontSize: '48px', margin: '0 0 16px' }}>🏒</p>
-          <p style={{ color: '#475569', margin: 0, fontSize: '14px' }}>Select a team and season to begin entering combine results</p>
+      {selectedTeam && !loading && athletes.length === 0 && (
+        <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}>
+          <p style={{ color: '#475569', margin: 0 }}>No offseason athletes found for {selectedTeam} in {selectedSeason}</p>
         </div>
       )}
 
-      {selectedTeam && !loading && athletes.length === 0 && (
+      {!selectedTeam && (
         <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}>
-          <p style={{ color: '#475569', margin: 0 }}>No athletes found for {selectedTeam}</p>
+          <p style={{ color: '#475569', margin: 0 }}>Select a team to begin entering combine results</p>
         </div>
       )}
     </div>
