@@ -24,7 +24,7 @@ function parseFtIn(raw: any) {
 function hasAnyResult(payload: any) { return ['sprint','height_ft','height_in','wingspan_ft','wingspan_in','vertical','broad_jump_ft','broad_jump_in','chinup_hold','chinups','mile02_time','mile02_watts'].some(k => payload[k] !== null && payload[k] !== undefined && payload[k] !== '') }
 function headerKey(v: any) { return clean(v).toLowerCase().replace(/[^a-z0-9]/g, '') }
 function findHeaderRow(grid: any[][]) {
-  for (let r = 0; r < Math.min(grid.length, 30); r++) {
+  for (let r = 0; r < Math.min(grid.length, 40); r++) {
     const keys = (grid[r] || []).map(headerKey)
     const hasFirst = keys.some(k => k === 'first' || k === 'firstname')
     const hasLast = keys.some(k => k === 'last' || k === 'lastname')
@@ -51,16 +51,24 @@ export async function POST(request: Request) {
     const headerRowIndex = findHeaderRow(grid)
     if (headerRowIndex < 0) return NextResponse.json({ error: 'Could not find header row with First, Last, and 10 m Sprint.' }, { status: 400 })
     const headers = grid[headerRowIndex].map(headerKey)
-    const firstCol = findCol(headers, ['first'])
-    const lastCol = findCol(headers, ['last'])
-    const sprintCol = findCol(headers, ['10m', 'sprint'])
-    const broadCol = findCol(headers, ['broadjump'])
-    const chinCol = findCol(headers, ['chinuphold', 'chinhold', 'chinups', 'chinup'])
+    const firstCol = findCol(headers, ['firstname', 'first'])
+    const lastCol = findCol(headers, ['lastname', 'last'])
+    const teamCol = findCol(headers, ['team'])
+    const sprintCol = findCol(headers, ['sprint', '10m'])
+    const broadFtCol = findCol(headers, ['broadjumpft', 'broadft'])
+    const broadInCol = findCol(headers, ['broadjumpin', 'broadin'])
+    const broadCol = broadFtCol >= 0 ? -1 : findCol(headers, ['broadjump'])
+    const chinHoldCol = findCol(headers, ['chinuphold', 'chinhold'])
+    const chinupsCol = findCol(headers, ['chinups', 'chinup'])
     const verticalCol = findCol(headers, ['verticaljump', 'vertical'])
-    const assaultTimeCol = findCol(headers, ['05kmasslttime', '05kmassaulttime', 'asslttime', 'assaulttime'])
-    const assaultWattCol = findCol(headers, ['05kmassltwatt', '05kmassaultwatt', 'assltwatt', 'assaultwatt', 'watt'])
-    const heightCol = findCol(headers, ['heightft', 'height'])
-    const wingspanCol = findCol(headers, ['wingspanft', 'wingspan'])
+    const assaultTimeCol = findCol(headers, ['mile02time', '05kmasslttime', '05kmassaulttime', 'asslttime', 'assaulttime'])
+    const assaultWattCol = findCol(headers, ['mile02watts', 'mile02watt', '05kmassltwatt', '05kmassaultwatt', 'assltwatt', 'assaultwatt', 'watt'])
+    const heightFtCol = findCol(headers, ['heightft'])
+    const heightInCol = findCol(headers, ['heightin'])
+    const wingspanFtCol = findCol(headers, ['wingspanft'])
+    const wingspanInCol = findCol(headers, ['wingspanin'])
+    const heightCol = heightFtCol >= 0 ? -1 : findCol(headers, ['height'])
+    const wingspanCol = wingspanFtCol >= 0 ? -1 : findCol(headers, ['wingspan'])
 
     if (firstCol < 0 || lastCol < 0) return NextResponse.json({ error: 'First and Last columns are required.' }, { status: 400 })
 
@@ -71,9 +79,11 @@ export async function POST(request: Request) {
       const first = displayName(row[firstCol] || '')
       const last = displayName(row[lastCol] || '')
       if (!first || !last || first === 'FIRST' || last === 'LAST') continue
-      const broad = broadCol >= 0 ? parseFtIn(row[broadCol]) : { ft: null, inch: null }
-      const height = heightCol >= 0 ? parseFtIn(row[heightCol]) : { ft: null, inch: null }
-      const wingspan = wingspanCol >= 0 ? parseFtIn(row[wingspanCol]) : { ft: null, inch: null }
+      const rowTeam = teamCol >= 0 ? clean(row[teamCol]) : selectedTeam
+      if (rowTeam && rowTeam !== selectedTeam) continue
+      const broad = broadCol >= 0 ? parseFtIn(row[broadCol]) : { ft: broadFtCol >= 0 ? intNum(row[broadFtCol]) : null, inch: broadInCol >= 0 ? num(row[broadInCol]) : null }
+      const height = heightCol >= 0 ? parseFtIn(row[heightCol]) : { ft: heightFtCol >= 0 ? intNum(row[heightFtCol]) : null, inch: heightInCol >= 0 ? num(row[heightInCol]) : null }
+      const wingspan = wingspanCol >= 0 ? parseFtIn(row[wingspanCol]) : { ft: wingspanFtCol >= 0 ? intNum(row[wingspanFtCol]) : null, inch: wingspanInCol >= 0 ? num(row[wingspanInCol]) : null }
       const payload = {
         first_name: first,
         last_name: last,
@@ -84,7 +94,7 @@ export async function POST(request: Request) {
         sprint: sprintCol >= 0 ? num(row[sprintCol]) : null,
         broad_jump_ft: broad.ft,
         broad_jump_in: broad.inch,
-        chinup_hold: chinCol >= 0 ? num(row[chinCol]) : null,
+        chinup_hold: chinHoldCol >= 0 ? num(row[chinHoldCol]) : (chinupsCol >= 0 ? num(row[chinupsCol]) : null),
         vertical: verticalCol >= 0 ? num(row[verticalCol]) : null,
         mile02_time: assaultTimeCol >= 0 ? clean(row[assaultTimeCol] || '') || null : null,
         mile02_watts: assaultWattCol >= 0 ? intNum(row[assaultWattCol]) : null,
