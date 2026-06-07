@@ -8,10 +8,15 @@ import { createClient } from '@/lib/supabase/client'
 export const dynamic = 'force-dynamic'
 const YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030]
 const SEASON_START_MONTHS = ['April','May','June','July','August','September','October','November','December']
+const OFFSEASON_MONTHS = ['April','May','June','July','August']
 
 function getRosterSeason(year: number, month: string) {
   if (SEASON_START_MONTHS.includes(month)) return `${year}-${year + 1}`
   return `${year - 1}-${year}`
+}
+
+function getRosterPhase(month: string) {
+  return OFFSEASON_MONTHS.includes(month) ? 'offseason' : 'inseason'
 }
 
 export default function EntryPage() {
@@ -21,6 +26,7 @@ export default function EntryPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(ALL_MONTHS[new Date().getMonth()])
   const rosterSeason = getRosterSeason(selectedYear, selectedMonth)
+  const rosterPhase = getRosterPhase(selectedMonth)
   const [scores, setScores] = useState<Record<string, Partial<Record<TestType, string>>>>({})
   const [entryIds, setEntryIds] = useState<Record<string, string>>({})
   const [saveStatus, setSaveStatus] = useState<Record<string, 'saving'|'saved'|'deleted'|'error'|''>>({})
@@ -52,7 +58,7 @@ export default function EntryPage() {
   useEffect(() => {
     if (!selectedTeam) return
     setEntryError('')
-    fetch(`/api/athletes?team=${selectedTeam}&season=${rosterSeason}`)
+    fetch(`/api/athletes?team=${selectedTeam}&season=${rosterSeason}&roster_phase=${rosterPhase}`)
       .then(r => r.json())
       .then(data => {
         setAthletes(Array.isArray(data) ? data : [])
@@ -63,9 +69,9 @@ export default function EntryPage() {
         setAthletes([])
         setScores({})
         setEntryIds({})
-        setEntryError('Could not load athletes for this team and season.')
+        setEntryError('Could not load athletes for this team, season, and phase.')
       })
-  }, [selectedTeam, rosterSeason])
+  }, [selectedTeam, rosterSeason, rosterPhase])
 
   useEffect(() => {
     if (!selectedTeam) return
@@ -195,13 +201,17 @@ export default function EntryPage() {
             <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Roster Season</label>
             <div style={{ background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'#60a5fa', borderRadius:'6px', padding:'8px 12px', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:600 }}>{rosterSeason}</div>
           </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '6px' }}>Phase</label>
+            <div style={{ background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'#34d399', borderRadius:'6px', padding:'8px 12px', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:600 }}>{rosterPhase}</div>
+          </div>
         </div>
       </div>
 
       {selectedTeam && athletes.length > 0 && (
         <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', overflow: 'hidden' }}>
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div><h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} · {rosterSeason}</h2><p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>{selectedMonth} {selectedYear} · {athletes.length} athletes</p></div>
+            <div><h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} · {rosterSeason} · {rosterPhase}</h2><p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>{selectedMonth} {selectedYear} · {athletes.length} athletes</p></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.6)' }} /><span style={{ fontSize: '11px', color: '#34d399' }}>Live</span></div>
           </div>
           <div style={{ overflowX: 'auto' }}>
@@ -212,7 +222,7 @@ export default function EntryPage() {
           </div>
         </div>
       )}
-      {selectedTeam && athletes.length === 0 && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>No athletes found for {selectedTeam} in {rosterSeason}</p></div>}
+      {selectedTeam && athletes.length === 0 && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>No athletes found for {selectedTeam} in {rosterSeason} {rosterPhase}</p></div>}
       {!selectedTeam && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>Select a team to begin</p></div>}
     </div>
   )
