@@ -39,7 +39,7 @@ function findCol(keys: string[], patterns: (string | RegExp)[]) {
 }
 function emptyCombineRow(athlete: any, selectedTeam: string, season: string) {
   return {
-    id: `${athlete.id}-${season}-combine`, athlete_id: athlete.id, athlete_name: `${athlete.first_name} ${athlete.last_name}`,
+    athlete_id: athlete.id, athlete_name: `${athlete.first_name} ${athlete.last_name}`,
     team: selectedTeam, season, sprint: null, height_ft: null, height_in: null, wingspan_ft: null, wingspan_in: null,
     vertical: null, broad_jump_ft: null, broad_jump_in: null, chinup_hold: null, chinups: null, mile02_time: null, mile02_watts: null,
   }
