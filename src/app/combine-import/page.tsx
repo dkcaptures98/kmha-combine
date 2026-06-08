@@ -22,10 +22,11 @@ type ImportResult = {
   skippedMissing?: number
   missingExamples?: any[]
   teamCounts?: Record<string, number>
+  format?: string
 }
 
 function parseCsv(text: string) {
-  return text.split(/\r?\n/).filter(Boolean).map(line => {
+  return text.split(/\r?\n/).filter(line => line.trim().length > 0).map(line => {
     const cells: string[] = []
     let current = ''
     let inQuotes = false
@@ -63,6 +64,14 @@ export default function CombineImportPage() {
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
+  function syncCsvText(text: string) {
+    setCsvText(text)
+    setGrid(parseCsv(text))
+    setFileName(text.trim() ? 'Pasted CSV' : '')
+    setResult(null)
+    setError('')
+  }
+
   async function handleFile(file?: File) {
     if (!file) return
     setFileName(file.name)
@@ -84,15 +93,17 @@ export default function CombineImportPage() {
   }
 
   async function runImport(dryRun: boolean) {
+    const liveGrid = csvText.trim() ? parseCsv(csvText) : grid
     if (!team) { setError('Select the team before importing.'); return }
-    if (!grid.length) { setError('Upload a combine Excel/CSV file first.'); return }
+    if (!liveGrid.length) { setError('Upload a combine file or paste CSV content first.'); return }
+    setGrid(liveGrid)
     setLoading(true)
     setError('')
     try {
       const res = await fetch('/api/import-combine-results', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grid, season, roster_phase: phase, team, dryRun }),
+        body: JSON.stringify({ grid: liveGrid, season, roster_phase: phase, team, dryRun }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Combine import failed')
@@ -104,6 +115,7 @@ export default function CombineImportPage() {
     }
   }
 
+  const liveGridCount = csvText.trim() ? parseCsv(csvText).length : grid.length
   const canConfirm = result?.dryRun === true && !loading
 
   return (
@@ -111,7 +123,7 @@ export default function CombineImportPage() {
       <div style={{ borderBottom:'1px solid rgba(59,130,246,0.1)', padding:'24px 0 20px', marginBottom:'24px' }}>
         <Link href="/dashboard" style={{ display:'inline-block', marginBottom:'12px', color:'#60a5fa', fontSize:'13px', textDecoration:'none' }}>← Back to Dashboard</Link>
         <h1 style={{ margin:0, fontFamily:'var(--font-display)', fontSize:'36px', fontWeight:700, letterSpacing:'0.06em', color:'white' }}>COMBINE IMPORT</h1>
-        <p style={{ margin:'6px 0 0', color:'#64748b', fontSize:'13px' }}>Upload one Excel/CSV team sheet at a time. Missing test cells are okay.</p>
+        <p style={{ margin:'6px 0 0', color:'#64748b', fontSize:'13px' }}>Upload a file or paste long-format CSV directly. Missing test cells are okay.</p>
       </div>
 
       <div style={{ background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.15)', borderRadius:'10px', padding:'20px', marginBottom:'20px' }}>
@@ -124,24 +136,25 @@ export default function CombineImportPage() {
         <div onClick={() => fileRef.current?.click()} style={{ border:'2px dashed rgba(59,130,246,0.2)', borderRadius:'8px', padding:'30px', textAlign:'center', cursor:'pointer', marginBottom:'14px' }}>
           <p style={{ margin:'0 0 8px', fontSize:'32px' }}>📊</p>
           <p style={{ margin:'0 0 4px', fontSize:'14px', color:'#94a3b8' }}>Click to upload combine Excel/CSV</p>
-          <p style={{ margin:0, fontSize:'12px', color:'#334155' }}>Accepts .xlsx, .xls, or .csv</p>
+          <p style={{ margin:0, fontSize:'12px', color:'#334155' }}>Or paste CSV text below</p>
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,text/csv" onChange={e => handleFile(e.target.files?.[0])} style={{ display:'none' }} />
         </div>
         {fileName && <p style={{ margin:'0 0 12px', color:'#60a5fa', fontSize:'12px' }}>{fileName}</p>}
 
-        <textarea value={csvText} onChange={e => { setCsvText(e.target.value); setGrid(parseCsv(e.target.value)); setResult(null); setError('') }} placeholder="Preview/paste spreadsheet text here..." rows={6} style={{ width:'100%', background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'white', borderRadius:'6px', padding:'10px 12px', fontSize:'12px', fontFamily:'monospace', resize:'vertical', outline:'none', boxSizing:'border-box' }} />
+        <textarea value={csvText} onChange={e => syncCsvText(e.target.value)} placeholder={"Paste CSV here, example:\nfirst_name,last_name,team,test,score,season,roster_phase\nJOHN,SMITH,U15AA,10m Sprint,1.95,2026-2027,offseason"} rows={9} style={{ width:'100%', background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'white', borderRadius:'6px', padding:'10px 12px', fontSize:'12px', fontFamily:'monospace', resize:'vertical', outline:'none', boxSizing:'border-box' }} />
+        <p style={{ margin:'8px 0 0', color:'#475569', fontSize:'12px' }}>{liveGridCount} CSV rows detected</p>
 
         {error && <div style={{ marginTop:'12px', padding:'10px 14px', borderRadius:'6px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', color:'#f87171', fontSize:'13px' }}>{error}</div>}
 
         <div style={{ display:'flex', gap:'10px', marginTop:'16px' }}>
-          <button onClick={() => runImport(true)} disabled={!grid.length || !team || loading} style={{ flex:1, padding:'11px', borderRadius:'8px', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:700, cursor:!grid.length||!team||loading?'not-allowed':'pointer', background:'rgba(59,130,246,0.12)', border:'1px solid rgba(59,130,246,0.35)', color:'#60a5fa', opacity:!grid.length||!team||loading?0.5:1 }}>{loading ? 'Working...' : 'Preview Import'}</button>
+          <button onClick={() => runImport(true)} disabled={!liveGridCount || !team || loading} style={{ flex:1, padding:'11px', borderRadius:'8px', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:700, cursor:!liveGridCount||!team||loading?'not-allowed':'pointer', background:'rgba(59,130,246,0.12)', border:'1px solid rgba(59,130,246,0.35)', color:'#60a5fa', opacity:!liveGridCount||!team||loading?0.5:1 }}>{loading ? 'Working...' : 'Preview Import'}</button>
           <button onClick={() => runImport(false)} disabled={!canConfirm} style={{ flex:1, padding:'11px', borderRadius:'8px', fontSize:'13px', fontFamily:'var(--font-display)', fontWeight:700, cursor:canConfirm?'pointer':'not-allowed', background:canConfirm?'linear-gradient(135deg,#1d4ed8,#2563eb)':'rgba(30,41,59,0.4)', border:'none', color:canConfirm?'white':'#475569' }}>Confirm Import</button>
         </div>
       </div>
 
       {result && (
         <div style={{ background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.15)', borderRadius:'10px', overflow:'hidden' }}>
-          <div style={{ padding:'14px 16px', borderBottom:'1px solid rgba(59,130,246,0.1)' }}><h2 style={{ margin:0, color:'white', fontSize:'18px', fontFamily:'var(--font-display)' }}>{result.dryRun ? 'Preview Result' : 'Import Complete'} · {result.season} · {result.roster_phase}</h2></div>
+          <div style={{ padding:'14px 16px', borderBottom:'1px solid rgba(59,130,246,0.1)' }}><h2 style={{ margin:0, color:'white', fontSize:'18px', fontFamily:'var(--font-display)' }}>{result.dryRun ? 'Preview Result' : 'Import Complete'} · {result.season} · {result.roster_phase}{result.format ? ` · ${result.format}` : ''}</h2></div>
           <div style={{ padding:'16px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'12px' }}>
             {[
               ['Teams Detected', result.teamsDetected?.join(', ') || '-'],
