@@ -5,7 +5,7 @@ import { getUserPermissions, UserRole } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
-// U10-12 age groups get ChinHold, U13-18 get Chinups + 0.2 Mile
+// U10-12 age groups get ChinHold, U13-18 get Chinups + 0.5 Km
 const U10_12 = ['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA']
 const SEASONS = ['2024-2025','2025-2026','2026-2027','2027-2028']
 const ROSTER_PHASES = ['offseason', 'inseason']
