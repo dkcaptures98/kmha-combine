@@ -7,7 +7,7 @@ import { getTeamLeaders, getTopChanges, formatScore } from '@/lib/analytics'
 export const dynamic = 'force-dynamic'
 
 const ALL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const ALL_YEARS = [2024, 2025, 2026, 2027, 2028]
+const ALL_YEARS = [2024, 2025, 2026, 2027, 2028, 2029]
 
 const SEASONS = [
   { label: '2024-2025 In-Season', months: ['September','October','November','December','January','February','March'], years: [2024,2025], fallYear: 2024, springYear: 2025 },
@@ -17,6 +17,9 @@ const SEASONS = [
   { label: '2026-2027 In-Season', months: ['September','October','November','December','January','February','March'], years: [2026,2027], fallYear: 2026, springYear: 2027 },
   { label: '2027 Off-Season',     months: ['May','June','July','August'], years: [2027], fallYear: 2027, springYear: 2027 },
   { label: '2027-2028 In-Season', months: ['September','October','November','December','January','February','March'], years: [2027,2028], fallYear: 2027, springYear: 2028 },
+  { label: '2028 Off-Season',     months: ['May','June','July','August'], years: [2027], fallYear: 2027, springYear: 2028 },
+  { label: '2028-2029 In-Season', months: ['September','October','November','December','January','February','March'], years: [2027,2028], fallYear: 2028, springYear: 2029 },
+
 ]
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
