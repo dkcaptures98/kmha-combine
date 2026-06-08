@@ -46,21 +46,22 @@ export default function RosterImportPage() {
     })
   }
 
-  async function handleFile(file?: File) {
-    if (!file) return
-    const text = await file.text()
-    setFileName(file.name)
+  function setText(text: string, name = text.trim() ? 'Pasted CSV' : '') {
     setCsvText(text)
+    setFileName(name)
     setPreview(parsePreview(text))
     setResult(null)
     setError('')
   }
 
+  async function handleFile(file?: File) {
+    if (!file) return
+    const text = await file.text()
+    setText(text, file.name)
+  }
+
   async function runImport(dryRun: boolean) {
-    if (!csvText.trim()) {
-      setError('Upload a roster CSV first.')
-      return
-    }
+    if (!csvText.trim()) { setError('Upload or paste a roster CSV first.'); return }
     setLoading(true)
     setError('')
     try {
@@ -80,17 +81,18 @@ export default function RosterImportPage() {
   }
 
   const canConfirm = result?.dryRun === true && !loading
+  const rowCount = csvText.trim() ? csvText.trim().split(/\r?\n/).filter(Boolean).length : 0
 
   return (
     <div style={{ paddingBottom:'48px' }}>
       <div style={{ borderBottom:'1px solid rgba(59,130,246,0.1)', padding:'24px 0 20px', marginBottom:'24px' }}>
         <Link href="/dashboard" style={{ display:'inline-block', marginBottom:'12px', color:'#60a5fa', fontSize:'13px', textDecoration:'none' }}>← Back to Dashboard</Link>
         <h1 style={{ margin:0, fontFamily:'var(--font-display)', fontSize:'36px', fontWeight:700, letterSpacing:'0.06em', color:'white' }}>ROSTER IMPORT</h1>
-        <p style={{ margin:'6px 0 0', color:'#64748b', fontSize:'13px' }}>Upload roster CSVs without athlete IDs. IDs are generated automatically.</p>
+        <p style={{ margin:'6px 0 0', color:'#64748b', fontSize:'13px' }}>Upload or paste roster CSVs without athlete IDs. IDs are generated automatically.</p>
       </div>
 
-      <div style={{ background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.15)', borderRadius:'10px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'12px', marginBottom:'16px' }}>
+      <div style={{ maxWidth:'860px', background:'rgba(10,20,40,0.8)', border:'1px solid rgba(59,130,246,0.15)', borderRadius:'10px', padding:'20px', marginBottom:'20px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'12px', marginBottom:'16px' }}>
           <div>
             <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'6px', fontFamily:'var(--font-display)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Season</label>
             <select value={season} onChange={e => { setSeason(e.target.value); setResult(null) }} className="kmha-select w-full">
@@ -105,15 +107,16 @@ export default function RosterImportPage() {
           </div>
         </div>
 
-        <div onClick={() => fileRef.current?.click()} style={{ border:'2px dashed rgba(59,130,246,0.2)', borderRadius:'8px', padding:'30px', textAlign:'center', cursor:'pointer', marginBottom:'14px' }}>
+        <div onClick={() => fileRef.current?.click()} style={{ border:'2px dashed rgba(59,130,246,0.2)', borderRadius:'8px', padding:'34px', textAlign:'center', cursor:'pointer', marginBottom:'14px', background:'rgba(5,15,35,0.25)' }}>
           <p style={{ margin:'0 0 8px', fontSize:'32px' }}>📄</p>
           <p style={{ margin:'0 0 4px', fontSize:'14px', color:'#94a3b8' }}>Click to upload roster CSV</p>
-          <p style={{ margin:0, fontSize:'12px', color:'#334155' }}>Required: first name, last name, team</p>
+          <p style={{ margin:0, fontSize:'12px', color:'#334155' }}>Or paste CSV text below</p>
           <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={e => handleFile(e.target.files?.[0])} style={{ display:'none' }} />
         </div>
         {fileName && <p style={{ margin:'0 0 12px', color:'#60a5fa', fontSize:'12px' }}>{fileName}</p>}
 
-        <textarea value={csvText} onChange={e => { setCsvText(e.target.value); setPreview(parsePreview(e.target.value)); setResult(null); setError('') }} placeholder="Or paste CSV content here..." rows={5} style={{ width:'100%', background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'white', borderRadius:'6px', padding:'10px 12px', fontSize:'12px', fontFamily:'monospace', resize:'vertical', outline:'none', boxSizing:'border-box' }} />
+        <textarea value={csvText} onChange={e => setText(e.target.value)} placeholder={"Or paste CSV content here...\nFirst,Last,Team\nTYLER,FLUIT,U12AAA"} rows={7} style={{ width:'100%', background:'rgba(5,15,35,0.8)', border:'1px solid rgba(59,130,246,0.2)', color:'white', borderRadius:'6px', padding:'10px 12px', fontSize:'12px', fontFamily:'monospace', resize:'vertical', outline:'none', boxSizing:'border-box' }} />
+        <p style={{ margin:'8px 0 0', color:'#475569', fontSize:'12px' }}>{rowCount} CSV rows detected</p>
 
         {preview.length > 0 && (
           <div style={{ marginTop:'12px', background:'rgba(52,211,153,0.06)', border:'1px solid rgba(52,211,153,0.2)', borderRadius:'6px', padding:'10px 14px' }}>
