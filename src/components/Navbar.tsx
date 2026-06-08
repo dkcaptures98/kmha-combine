@@ -21,7 +21,8 @@ export default function Navbar() {
             ? 'superadmin'
             : p.role
       setRole(normalizedRole)
-      if (normalizedRole === 'data_entry' && !['/entry', '/results', '/schedule', '/combine'].includes(pathname)) router.replace('/entry')
+      const allowedDataEntryRoutes = ['/entry', '/results', '/schedule', '/combine', '/combine-import', '/roster-import']
+      if (normalizedRole === 'data_entry' && !allowedDataEntryRoutes.includes(pathname)) router.replace('/entry')
     })
   }, [pathname])
 
@@ -66,6 +67,8 @@ export default function Navbar() {
       { href: '/entry', label: 'Data Entry' },
       { href: '/results', label: 'Results' },
       { href: '/combine', label: 'Annual Combine' },
+      { href: '/combine-import', label: 'Combine Import' },
+      { href: '/roster-import', label: 'Roster Import' },
       { href: '/schedule', label: 'Schedule' },
     ],
     coach: [
