@@ -55,7 +55,7 @@ export default function PlayerReportCardsPage() {
       .then(([athleteData, combineData]) => { setAthletes(Array.isArray(athleteData) ? athleteData : []); setCombineResults(Array.isArray(combineData) ? combineData : []); setLoading(false) })
   }, [])
 
-  function reportUrlFor(athleteId: string) { return `/athlete-report?id=${athleteId}${reportMode === 'annual' ? `&type=annual&season=${annualSeason}&roster_phase=${annualPhase}` : ''}` }
+  function reportUrlFor(athleteId: string) { return reportMode === 'annual' ? `/athlete-annual-report?id=${athleteId}&season=${annualSeason}&roster_phase=${annualPhase}` : `/athlete-report?id=${athleteId}` }
   function reportLabel() { return reportMode === 'annual' ? 'Annual Combine Report Card' : 'Regular Report Card' }
   function openReport(athleteId: string) { setGenerating(athleteId); window.open(reportUrlFor(athleteId), '_blank'); setTimeout(() => setGenerating(null), 1000) }
   function openAllTeamReports() { filtered.forEach((athlete, i) => { setTimeout(() => window.open(reportUrlFor(athlete.id), '_blank'), i * 400) }) }
