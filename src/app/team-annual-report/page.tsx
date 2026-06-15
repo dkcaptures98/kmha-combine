@@ -7,7 +7,7 @@ import { Athlete } from '@/types'
 export const dynamic = 'force-dynamic'
 
 type CombineResult = { athlete_id?: string; athlete_name?: string; team?: string; season?: string; roster_phase?: string | null; sprint?: number | null; height_ft?: number | null; height_in?: number | null; wingspan_ft?: number | null; wingspan_in?: number | null; vertical?: number | null; broad_jump_ft?: number | null; broad_jump_in?: number | null; chinup_hold?: number | null; chinups?: number | null; mile02_time?: string | null; mile02_watts?: number | null }
-type TestDef = { key: string; label: string; lower: boolean }
+type TestDef = { key: string; label: string; lower: boolean; performance?: boolean }
 type DisplayAthlete = { id: string; first_name: string; last_name: string; row: CombineResult }
 
 const U10_12 = ['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA']
@@ -15,14 +15,67 @@ const SEASONS = ['2025-2026','2026-2027','2027-2028','2028-2029']
 const PHASES = ['offseason','inseason']
 
 function isYoungTeam(team: string) { return U10_12.includes(team) }
-function getTests(team: string): TestDef[] { const young = isYoungTeam(team); return [{ key:'height', label:'Height', lower:false }, { key:'wingspan', label:'Wingspan', lower:false }, { key:'sprint', label:'10m Sprint', lower:true }, { key:'vertical', label:'Vertical Jump', lower:false }, young ? { key:'chinhold', label:'Chin Up Hold', lower:false } : { key:'chinups', label:'Chinups', lower:false }, { key:'broad', label:'Broad Jump', lower:false }, ...(!young ? [{ key:'time', label:'0.5km Assault Bike Time', lower:true }, { key:'watts', label:'0.5km Assault Bike Avg Watts', lower:false }] : [])] }
-function toInches(ft?: number | null, inches?: number | null) { if (ft == null && inches == null) return null; return (ft ?? 0) * 12 + (inches ?? 0) }
-function parseTimeSeconds(v?: string | null) { if (!v) return null; const s = String(v).trim(); if (!s) return null; if (s.includes(':')) { const [m, sec] = s.split(':').map(Number); return Number.isFinite(m) && Number.isFinite(sec) ? m * 60 + sec : null } const n = Number(s); return Number.isFinite(n) ? n : null }
-function value(row: CombineResult | undefined, key: string) { if (!row) return null; if (key==='sprint') return row.sprint ?? null; if (key==='vertical') return row.vertical ?? null; if (key==='chinhold') return row.chinup_hold ?? null; if (key==='chinups') return row.chinups ?? null; if (key==='broad') return toInches(row.broad_jump_ft,row.broad_jump_in); if (key==='height') return toInches(row.height_ft,row.height_in); if (key==='wingspan') return toInches(row.wingspan_ft,row.wingspan_in); if (key==='time') return parseTimeSeconds(row.mile02_time); if (key==='watts') return row.mile02_watts ?? null; return null }
-function hasAnyTest(row: CombineResult | undefined, tests: TestDef[]) { return !!row && tests.some(t => value(row, t.key) != null) }
+function getTests(team: string): TestDef[] {
+  const young = isYoungTeam(team)
+  return [
+    { key:'height', label:'Height', lower:false, performance:false },
+    { key:'wingspan', label:'Wingspan', lower:false, performance:false },
+    { key:'sprint', label:'10m Sprint', lower:true, performance:true },
+    { key:'vertical', label:'Vertical Jump', lower:false, performance:true },
+    young ? { key:'chinhold', label:'Chin Up Hold', lower:false, performance:true } : { key:'chinups', label:'Chinups', lower:false, performance:true },
+    { key:'broad', label:'Broad Jump', lower:false, performance:true },
+    ...(!young ? [
+      { key:'time', label:'0.5km Assault Bike Time', lower:true, performance:true },
+      { key:'watts', label:'0.5km Assault Bike Avg Watts', lower:false, performance:true }
+    ] : [])
+  ]
+}
+function toInches(ft?: number | null, inches?: number | null) {
+  if (ft == null && inches == null) return null
+  const total = (ft ?? 0) * 12 + (inches ?? 0)
+  return total > 0 ? total : null
+}
+function parseTimeSeconds(v?: string | null) {
+  if (!v) return null
+  const s = String(v).trim()
+  if (!s) return null
+  if (s.includes(':')) {
+    const [m, sec] = s.split(':').map(Number)
+    const total = Number.isFinite(m) && Number.isFinite(sec) ? m * 60 + sec : null
+    return total && total > 0 ? total : null
+  }
+  const n = Number(s)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+function positiveOrNull(v?: number | null) { return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null }
+function countOrNull(v?: number | null) { return typeof v === 'number' && Number.isFinite(v) ? v : null }
+function value(row: CombineResult | undefined, key: string) {
+  if (!row) return null
+  if (key==='sprint') return positiveOrNull(row.sprint)
+  if (key==='vertical') return positiveOrNull(row.vertical)
+  if (key==='chinhold') return countOrNull(row.chinup_hold)
+  if (key==='chinups') return countOrNull(row.chinups)
+  if (key==='broad') return toInches(row.broad_jump_ft,row.broad_jump_in)
+  if (key==='height') return toInches(row.height_ft,row.height_in)
+  if (key==='wingspan') return toInches(row.wingspan_ft,row.wingspan_in)
+  if (key==='time') return parseTimeSeconds(row.mile02_time)
+  if (key==='watts') return positiveOrNull(row.mile02_watts)
+  return null
+}
+function hasAnyTest(row: CombineResult | undefined, tests: TestDef[]) {
+  return !!row && tests.filter(t => t.performance !== false).some(t => value(row, t.key) != null)
+}
 function avg(nums: number[]) { return nums.length ? nums.reduce((s,v)=>s+v,0)/nums.length : null }
 function fmtInches(v: number) { const total = Math.round(v); const ft = Math.floor(total / 12); return `${ft}'${total - ft * 12}"` }
-function fmt(key: string, v: number | null) { if (v == null) return 'N/A'; if (['height','wingspan','broad'].includes(key)) return fmtInches(v); if (key==='sprint') return `${v.toFixed(2)}s`; if (key==='time') return `${Math.round(v)}s`; if (key==='vertical') return `${Math.round(v)} cm`; if (key==='watts') return `${Math.round(v)} W`; return String(Math.round(v)) }
+function fmt(key: string, v: number | null) {
+  if (v == null) return 'N/A'
+  if (['height','wingspan','broad'].includes(key)) return fmtInches(v)
+  if (key==='sprint') return `${v.toFixed(2)}s`
+  if (key==='time') return `${Math.round(v)}s`
+  if (key==='vertical') return `${Math.round(v)} cm`
+  if (key==='watts') return `${Math.round(v)} W`
+  return String(Math.round(v))
+}
 function periodIndex(season?: string, phase?: string | null) { const s = SEASONS.indexOf(season || ''); const p = PHASES.indexOf(phase || ''); return (s < 0 ? 999 : s * 2) + (p < 0 ? 0 : p) }
 function phaseLabel(phase?: string | null) { return phase === 'offseason' ? 'Offseason' : phase === 'inseason' ? 'In-Season' : (phase || '—') }
 function improvement(current: number | null, previous: number | null, lower: boolean) { if (current == null || previous == null || previous === 0) return null; const raw = ((current - previous) / previous) * 100; return lower ? -raw : raw }
