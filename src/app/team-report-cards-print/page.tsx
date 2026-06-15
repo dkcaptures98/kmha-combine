@@ -23,9 +23,8 @@ function TeamReportCardsPrintContent() {
   const [entries,setEntries]=useState<RegularEntry[]>([])
   const [loading,setLoading]=useState(true)
   useEffect(()=>{Promise.all([fetch('/api/athletes').then(r=>r.json()),fetch('/api/combine').then(r=>r.json()).catch(()=>[]),fetch('/api/entries').then(r=>r.json()).catch(()=>[])]).then(([a,c,e])=>{setAthletes(Array.isArray(a)?a:[]);setCombine(Array.isArray(c)?c:[]);setEntries(Array.isArray(e)?e:[]);setLoading(false)})},[])
-  const annualIds = new Set(combine.filter(r=>r.season===annualSeason && (!r.roster_phase || r.roster_phase===phase)).map(r=>r.athlete_id).filter(Boolean) as string[])
   const regularIds = new Set(entries.filter(e=>entryInRegularSeason(e, regularSeason)).map(e=>e.athlete_id).filter(Boolean) as string[])
-  const selected = athletes.filter(a=>a.team===team && (mode==='annual'?annualIds.has(a.id):(regularSeason==='All Regular Testing'||regularIds.has(a.id)))).sort((a,b)=>a.last_name.localeCompare(b.last_name))
+  const selected = athletes.filter(a=>a.team===team && (mode==='annual' ? true : (regularSeason==='All Regular Testing'||regularIds.has(a.id)))).sort((a,b)=>a.last_name.localeCompare(b.last_name))
   function reportUrl(id:string){return mode==='annual'?`/athlete-annual-report?id=${id}&season=${annualSeason}&roster_phase=${phase}`:`/athlete-report?id=${id}${regularSeason==='All Regular Testing'?'':`&season_filter=${encodeURIComponent(regularSeason)}`}`}
   if(!team)return <div style={{padding:48,fontFamily:'Arial'}}>No team selected.</div>
   if(loading)return <div style={{padding:48,fontFamily:'Arial'}}>Building team report-card packet...</div>
