@@ -12,6 +12,22 @@ function adminClient() {
 
 const META_FIELDS = new Set(['id','athlete_id','athlete_name','team','season','created_at','updated_at'])
 
+async function authenticatedUser(request: Request) {
+  const supabase = await createClient()
+  const { data: { user: cookieUser } } = await supabase.auth.getUser()
+  if (cookieUser) return cookieUser
+
+  const authHeader = request.headers.get('authorization') || ''
+  if (!authHeader.toLowerCase().startsWith('bearer ')) return null
+  const token = authHeader.slice(7).trim()
+  if (!token) return null
+
+  const admin = adminClient()
+  const { data, error } = await admin.auth.getUser(token)
+  if (error) return null
+  return data.user || null
+}
+
 export async function GET(request: Request) {
   const supabase = await createClient()
   const { searchParams } = new URL(request.url)
@@ -33,10 +49,10 @@ export async function POST(request: Request) {
     if (!body.athlete_id) return NextResponse.json({ error: 'athlete_id is required.' }, { status: 400 })
     if (!body.season) return NextResponse.json({ error: 'season is required.' }, { status: 400 })
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const admin = adminClient()
+    const user = await authenticatedUser(request)
+    if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
+    const admin = adminClient()
     const payload = {
       ...body,
       athlete_name: body.athlete_name || '',
@@ -58,7 +74,7 @@ export async function POST(request: Request) {
     const { error: auditError } = await admin.from('audit_log').insert({
       action: 'COMBINE_ENTRY',
       table_name: 'combine_results',
-      user_email: user?.email || 'unknown',
+      user_email: user.email || 'authenticated-user',
       record_id: body.athlete_id,
       details: {
         athlete: payload.athlete_name,
