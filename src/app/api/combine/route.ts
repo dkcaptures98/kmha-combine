@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 function adminClient() {
@@ -12,20 +13,26 @@ function adminClient() {
 
 const META_FIELDS = new Set(['id','athlete_id','athlete_name','team','season','created_at','updated_at'])
 
-async function authenticatedUser(request: Request) {
+async function authenticatedIdentity(request: Request) {
   const supabase = await createClient()
   const { data: { user: cookieUser } } = await supabase.auth.getUser()
-  if (cookieUser) return cookieUser
+  if (cookieUser) return cookieUser.email || cookieUser.id
 
   const authHeader = request.headers.get('authorization') || ''
-  if (!authHeader.toLowerCase().startsWith('bearer ')) return null
-  const token = authHeader.slice(7).trim()
-  if (!token) return null
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    const token = authHeader.slice(7).trim()
+    if (token) {
+      const admin = adminClient()
+      const { data, error } = await admin.auth.getUser(token)
+      if (!error && data.user) return data.user.email || data.user.id
+    }
+  }
 
-  const admin = adminClient()
-  const { data, error } = await admin.auth.getUser(token)
-  if (error) return null
-  return data.user || null
+  // Annual Combine establishes this HttpOnly cookie from a validated Supabase
+  // access token when the page opens. It is a fallback for browsers where the
+  // Supabase SSR auth cookie is not visible to this route.
+  const cookieStore = await cookies()
+  return cookieStore.get('kmha_audit_identity')?.value || null
 }
 
 export async function GET(request: Request) {
@@ -49,8 +56,8 @@ export async function POST(request: Request) {
     if (!body.athlete_id) return NextResponse.json({ error: 'athlete_id is required.' }, { status: 400 })
     if (!body.season) return NextResponse.json({ error: 'season is required.' }, { status: 400 })
 
-    const user = await authenticatedUser(request)
-    if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    const userIdentity = await authenticatedIdentity(request)
+    if (!userIdentity) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const admin = adminClient()
     const payload = {
@@ -74,7 +81,7 @@ export async function POST(request: Request) {
     const { error: auditError } = await admin.from('audit_log').insert({
       action: 'COMBINE_ENTRY',
       table_name: 'combine_results',
-      user_email: user.email || 'authenticated-user',
+      user_email: userIdentity,
       record_id: body.athlete_id,
       details: {
         athlete: payload.athlete_name,
