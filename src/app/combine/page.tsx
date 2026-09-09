@@ -47,6 +47,11 @@ const EDITABLE_FIELDS: (keyof CombineResult)[] = [
 
 function isU1012(team: string) { return U10_12.includes(team) }
 
+function currentRosterPhase() {
+  const month = new Date().getMonth()
+  return month >= 3 && month <= 7 ? 'offseason' : 'inseason'
+}
+
 function todayTorontoDateString() {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Toronto',
@@ -61,7 +66,7 @@ export default function CombinePage() {
   const [results, setResults] = useState<Record<string, CombineResult>>({})
   const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedSeason, setSelectedSeason] = useState('2026-2027')
-  const [selectedRosterPhase, setSelectedRosterPhase] = useState('offseason')
+  const [selectedRosterPhase, setSelectedRosterPhase] = useState(currentRosterPhase())
   const [role, setRole] = useState<UserRole | null>(null)
   const [lock, setLock] = useState<LockInfo | null>(null)
   const [saveStatus, setSaveStatus] = useState<Record<string, 'saving'|'saved'|'error'|''>>({})
