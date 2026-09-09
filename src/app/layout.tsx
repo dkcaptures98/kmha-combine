@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Barlow_Condensed, Inter } from 'next/font/google'
+import CombineManualSave from '@/components/CombineManualSave'
 import './globals.css'
 
 const barlowCondensed = Barlow_Condensed({
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${barlowCondensed.variable} ${inter.variable}`}>
       <body className="bg-rink-dark text-white font-body antialiased">
         {children}
+        <CombineManualSave />
       </body>
     </html>
   )
