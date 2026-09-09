@@ -28,9 +28,6 @@ async function authenticatedIdentity(request: Request) {
     }
   }
 
-  // Annual Combine establishes this HttpOnly cookie from a validated Supabase
-  // access token when the page opens. It is a fallback for browsers where the
-  // Supabase SSR auth cookie is not visible to this route.
   const cookieStore = await cookies()
   return cookieStore.get('kmha_audit_identity')?.value || null
 }
@@ -56,10 +53,11 @@ export async function POST(request: Request) {
     if (!body.athlete_id) return NextResponse.json({ error: 'athlete_id is required.' }, { status: 400 })
     if (!body.season) return NextResponse.json({ error: 'season is required.' }, { status: 400 })
 
+    // Identity is for auditing only. A stale/missing browser session must NEVER
+    // prevent testing data from being written during a live combine.
     const userIdentity = await authenticatedIdentity(request)
-    if (!userIdentity) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-
     const admin = adminClient()
+
     const payload = {
       ...body,
       athlete_name: body.athlete_name || '',
@@ -81,7 +79,7 @@ export async function POST(request: Request) {
     const { error: auditError } = await admin.from('audit_log').insert({
       action: 'COMBINE_ENTRY',
       table_name: 'combine_results',
-      user_email: userIdentity,
+      user_email: userIdentity || 'unverified-session',
       record_id: body.athlete_id,
       details: {
         athlete: payload.athlete_name,
@@ -89,6 +87,7 @@ export async function POST(request: Request) {
         season: payload.season,
         changed_fields: changedFields,
         values: changedValues,
+        identity_verified: Boolean(userIdentity),
       },
     })
 
