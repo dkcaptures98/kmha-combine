@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 const U10_12 = ['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA']
 const SEASONS = ['2024-2025','2025-2026','2026-2027','2027-2028']
 const ROSTER_PHASES = ['offseason', 'inseason']
+const LIVE_SYNC_MS = 1500
 
 interface CombineResult {
   id?: string
@@ -39,6 +40,11 @@ interface LockInfo {
   notes?: string
 }
 
+const EDITABLE_FIELDS: (keyof CombineResult)[] = [
+  'sprint','height_ft','height_in','wingspan_ft','wingspan_in','vertical',
+  'broad_jump_ft','broad_jump_in','chinup_hold','chinups','mile02_time','mile02_watts','notes'
+]
+
 function isU1012(team: string) { return U10_12.includes(team) }
 
 function todayTorontoDateString() {
@@ -64,6 +70,9 @@ export default function CombinePage() {
   const [newLockDate, setNewLockDate] = useState('')
   const [newLockNotes, setNewLockNotes] = useState('')
   const timers = useRef<Record<string, any>>({})
+  const pendingFields = useRef<Record<string, Set<string>>>({})
+  const fieldVersions = useRef<Record<string, number>>({})
+  const saveQueues = useRef<Record<string, Promise<void>>>({})
 
   const isAdmin = role === 'superadmin' || role === 'super_admin' || role === 'admin'
   const today = todayTorontoDateString()
@@ -82,8 +91,8 @@ export default function CombinePage() {
     if (!selectedTeam) return
     setLoading(true)
     Promise.all([
-      fetch(`/api/athletes?team=${selectedTeam}&season=${selectedSeason}&roster_phase=${selectedRosterPhase}`).then(r => r.json()),
-      fetch(`/api/combine?team=${selectedTeam}&season=${selectedSeason}`).then(r => r.json()),
+      fetch(`/api/athletes?team=${selectedTeam}&season=${selectedSeason}&roster_phase=${selectedRosterPhase}`, { cache: 'no-store' }).then(r => r.json()),
+      fetch(`/api/combine?team=${selectedTeam}&season=${selectedSeason}`, { cache: 'no-store' }).then(r => r.json()),
     ]).then(([aths, res]) => {
       setAthletes(Array.isArray(aths) ? aths : [])
       const map: Record<string, CombineResult> = {}
@@ -92,6 +101,66 @@ export default function CombinePage() {
       setLoading(false)
     })
   }, [selectedTeam, selectedSeason, selectedRosterPhase])
+
+  // Keep every open device in sync. Pending local fields are preserved until
+  // their own save succeeds, while all other fields accept the latest server value.
+  useEffect(() => {
+    if (!selectedTeam) return
+    let stopped = false
+
+    const sync = async () => {
+      try {
+        const res = await fetch(`/api/combine?team=${selectedTeam}&season=${selectedSeason}&_=${Date.now()}`, { cache: 'no-store' })
+        if (!res.ok || stopped) return
+        const rows = await res.json()
+        if (!Array.isArray(rows) || stopped) return
+
+        setResults(prev => {
+          const next = { ...prev }
+          for (const serverRow of rows as CombineResult[]) {
+            const id = serverRow.athlete_id
+            const local = next[id]
+            if (!local) {
+              next[id] = serverRow
+              continue
+            }
+
+            const pending = pendingFields.current[id]
+            if (!pending || pending.size === 0) {
+              next[id] = serverRow
+              continue
+            }
+
+            const merged: CombineResult = { ...serverRow }
+            for (const field of EDITABLE_FIELDS) {
+              if (pending.has(String(field))) (merged as any)[field] = (local as any)[field]
+            }
+            next[id] = merged
+          }
+          return next
+        })
+      } catch {}
+    }
+
+    const interval = window.setInterval(sync, LIVE_SYNC_MS)
+    sync()
+    return () => {
+      stopped = true
+      window.clearInterval(interval)
+    }
+  }, [selectedTeam, selectedSeason])
+
+  useEffect(() => {
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      const hasPending = Object.values(pendingFields.current).some(set => set && set.size > 0)
+      if (hasPending) {
+        event.preventDefault()
+        event.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', warnBeforeLeaving)
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving)
+  }, [])
 
   async function loadLocks() {
     const data = await fetch('/api/combine-lock').then(r => r.json())
@@ -107,19 +176,82 @@ export default function CombinePage() {
 
   function updateField(athleteId: string, athleteName: string, field: keyof CombineResult, value: any) {
     if (isLocked) return
-    setResults(prev => ({ ...prev, [athleteId]: { ...getResult(athleteId), athlete_id: athleteId, athlete_name: athleteName, team: selectedTeam, season: selectedSeason, [field]: value === '' ? null : value } }))
-    const key = `${athleteId}-${field}`
+    const normalizedValue = value === '' ? null : value
+    const key = `${athleteId}-${String(field)}`
+    const version = (fieldVersions.current[key] || 0) + 1
+    fieldVersions.current[key] = version
+
+    if (!pendingFields.current[athleteId]) pendingFields.current[athleteId] = new Set()
+    pendingFields.current[athleteId].add(String(field))
+
+    setResults(prev => ({
+      ...prev,
+      [athleteId]: {
+        ...(prev[athleteId] || { athlete_id: athleteId, athlete_name: athleteName, team: selectedTeam, season: selectedSeason }),
+        athlete_id: athleteId,
+        athlete_name: athleteName,
+        team: selectedTeam,
+        season: selectedSeason,
+        [field]: normalizedValue,
+      },
+    }))
+
     clearTimeout(timers.current[key])
-    timers.current[key] = setTimeout(async () => {
-      setSaveStatus(p => ({ ...p, [athleteId]: 'saving' }))
-      const r = { ...getResult(athleteId), [field]: value === '' ? null : value, athlete_name: athleteName, team: selectedTeam, season: selectedSeason }
-      const res = await fetch('/api/combine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r) })
-      setSaveStatus(p => ({ ...p, [athleteId]: res.ok ? 'saved' : 'error' }))
-      if (res.ok) {
-        const updated = await res.json()
-        if (updated?.[0]) setResults(prev => ({ ...prev, [athleteId]: updated[0] }))
+    timers.current[key] = setTimeout(() => {
+      const saveOneField = async () => {
+        setSaveStatus(p => ({ ...p, [athleteId]: 'saving' }))
+        try {
+          // Only the changed field is sent. This prevents an older browser copy
+          // from wiping newer values entered on another device.
+          const payload = {
+            athlete_id: athleteId,
+            athlete_name: athleteName,
+            team: selectedTeam,
+            season: selectedSeason,
+            [field]: normalizedValue,
+          }
+          const res = await fetch('/api/combine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+
+          if (!res.ok) {
+            setSaveStatus(p => ({ ...p, [athleteId]: 'error' }))
+            return
+          }
+
+          const updated = await res.json()
+          if (fieldVersions.current[key] === version) {
+            pendingFields.current[athleteId]?.delete(String(field))
+          }
+
+          if (updated?.[0]) {
+            setResults(prev => {
+              const local = prev[athleteId]
+              const serverRow = updated[0] as CombineResult
+              if (!local) return { ...prev, [athleteId]: serverRow }
+              const merged: CombineResult = { ...serverRow }
+              const pending = pendingFields.current[athleteId]
+              if (pending) {
+                for (const pendingField of EDITABLE_FIELDS) {
+                  if (pending.has(String(pendingField))) (merged as any)[pendingField] = (local as any)[pendingField]
+                }
+              }
+              return { ...prev, [athleteId]: merged }
+            })
+          }
+          setSaveStatus(p => ({ ...p, [athleteId]: 'saved' }))
+        } catch {
+          setSaveStatus(p => ({ ...p, [athleteId]: 'error' }))
+        }
+
+        setTimeout(() => setSaveStatus(p => ({ ...p, [athleteId]: '' })), 2000)
       }
-      setTimeout(() => setSaveStatus(p => ({ ...p, [athleteId]: '' })), 2000)
+
+      const previous = saveQueues.current[athleteId] || Promise.resolve()
+      const queued = previous.catch(() => {}).then(saveOneField)
+      saveQueues.current[athleteId] = queued
     }, 600)
   }
 
@@ -165,7 +297,7 @@ export default function CombinePage() {
 
       {isLocked && <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ fontSize: '24px' }}>🔒</span><div><p style={{ margin: '0 0 2px', fontSize: '14px', fontWeight: 700, color: '#f87171', fontFamily: 'var(--font-display)' }}>Combine Entry is Locked</p><p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>Data entry is only permitted on the scheduled combine date. Today is {today}. Contact your admin if you need access.</p></div></div>}
 
-      {selectedTeam && !loading && athletes.length > 0 && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', overflow: 'hidden' }}><div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(59,130,246,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} — {selectedSeason} · {selectedRosterPhase}</h2><p style={{ margin: '2px 0 0', fontSize: '12px', color: '#475569' }}>{athletes.length} athletes · auto-saves as you type</p></div><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '6px', height: '6px', borderRadius: '50%', background: isLocked ? '#f87171' : '#34d399', boxShadow: `0 0 6px ${isLocked ? 'rgba(239,68,68,0.6)' : 'rgba(52,211,153,0.6)'}` }} /><span style={{ fontSize: '11px', color: isLocked ? '#f87171' : '#34d399' }}>{isLocked ? 'Locked' : 'Live'}</span></div></div><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' as const, minWidth: '900px' }}><thead><tr style={{ background: 'rgba(5,15,35,0.6)' }}><th style={{ padding: '10px 12px', textAlign: 'left' as const, fontSize: '10px', fontWeight: 700, color: '#60a5fa', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', minWidth: '140px' }}>Athlete</th><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#fbbf24', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(251,191,36,0.35)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '80px' }}>10m Sprint<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>sec</span></th><th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Height</th><th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Wingspan</th><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '70px' }}>Vertical<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>cm</span></th><th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Broad Jump</th>{isU12Team ? <th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#34d399', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(52,211,153,0.4)', borderLeft: '2px solid rgba(52,211,153,0.3)', minWidth: '80px' }}>Chin Hold<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>seconds</span></th> : <><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#60a5fa', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.4)', borderLeft: '2px solid rgba(59,130,246,0.3)', minWidth: '70px' }}>Chin-Ups<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>reps</span></th><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#f87171', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(239,68,68,0.4)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '80px' }}>0.5km Time<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>sec</span></th><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#f87171', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(239,68,68,0.4)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '80px' }}>Avg Watts<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>W</span></th></>}<th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '30px' }}></th></tr><tr style={{ background: 'rgba(5,15,35,0.3)' }}><th style={{ padding: '4px 12px', borderBottom: '1px solid rgba(59,130,246,0.1)' }}></th><th style={{ padding: '4px 6px', borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>{['ft','in','ft','in'].map((label, i) => <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0||i===2 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>)}<th style={{ padding: '4px 6px', borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>{['ft','in'].map((label, i) => <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>)}{isU12Team ? <th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '2px solid rgba(52,211,153,0.3)' }}></th> : <><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '2px solid rgba(59,130,246,0.3)' }}></th><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th></>}<th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th></tr></thead><tbody>{athletes.map(athlete => { const r = getResult(athlete.id); const status = saveStatus[athlete.id]; const disabled = isLocked; const inputStyle = disabled ? lockedInput : inputBase; return <tr key={athlete.id} style={{ borderBottom: '1px solid rgba(59,130,246,0.04)' }}><td style={{ padding: '8px 12px', color: '#e2e8f0', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap' as const }}>{athlete.last_name}, {athlete.first_name}</td><td style={{ padding: '4px 6px' }}><input type="number" step="0.001" value={r.sprint ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'sprint', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="8" value={r.height_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'height_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.height_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'height_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="8" value={r.wingspan_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'wingspan_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.wingspan_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'wingspan_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td><td style={{ padding: '4px 6px' }}><input type="number" step="0.1" value={r.vertical ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'vertical', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" value={r.broad_jump_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'broad_jump_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.broad_jump_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'broad_jump_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td>{isU12Team ? <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(52,211,153,0.15)' }}><input type="number" step="0.1" value={r.chinup_hold ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinup_hold', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td> : <><td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(59,130,246,0.15)' }}><input type="number" min="0" value={r.chinups ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinups', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td><td style={{ padding: '4px 6px' }}><input type="text" value={r.mile02_time ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_time', e.target.value)} disabled={disabled} style={inputStyle} placeholder="0" /></td><td style={{ padding: '4px 6px' }}><input type="number" value={r.mile02_watts ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_watts', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td></>}<td style={{ padding: '4px 6px', textAlign: 'center' as const, width: '30px' }}>{status === 'saving' && <span style={{ color: '#64748b', fontSize: '10px' }}>…</span>}{status === 'saved' && <span style={{ color: '#34d399', fontSize: '10px' }}>✓</span>}{status === 'error' && <span style={{ color: '#f87171', fontSize: '10px' }}>✕</span>}</td></tr> })}</tbody></table></div></div>}
+      {selectedTeam && !loading && athletes.length > 0 && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', overflow: 'hidden' }}><div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(59,130,246,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'white' }}>{selectedTeam} — {selectedSeason} · {selectedRosterPhase}</h2><p style={{ margin: '2px 0 0', fontSize: '12px', color: '#475569' }}>{athletes.length} athletes · field-safe auto-save · live sync</p></div><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '6px', height: '6px', borderRadius: '50%', background: isLocked ? '#f87171' : '#34d399', boxShadow: `0 0 6px ${isLocked ? 'rgba(239,68,68,0.6)' : 'rgba(52,211,153,0.6)'}` }} /><span style={{ fontSize: '11px', color: isLocked ? '#f87171' : '#34d399' }}>{isLocked ? 'Locked' : 'Live'}</span></div></div><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' as const, minWidth: '900px' }}><thead><tr style={{ background: 'rgba(5,15,35,0.6)' }}><th style={{ padding: '10px 12px', textAlign: 'left' as const, fontSize: '10px', fontWeight: 700, color: '#60a5fa', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', minWidth: '140px' }}>Athlete</th><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#fbbf24', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(251,191,36,0.35)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '80px' }}>10m Sprint<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>sec</span></th><th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Height</th><th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Wingspan</th><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '70px' }}>Vertical<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>cm</span></th><th colSpan={2} style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}>Broad Jump</th>{isU12Team ? <th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#34d399', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(52,211,153,0.4)', borderLeft: '2px solid rgba(52,211,153,0.3)', minWidth: '80px' }}>Chin Hold<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>seconds</span></th> : <><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#60a5fa', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.4)', borderLeft: '2px solid rgba(59,130,246,0.3)', minWidth: '70px' }}>Chin-Ups<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>reps</span></th><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#f87171', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(239,68,68,0.4)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '80px' }}>0.5km Time<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>sec</span></th><th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#f87171', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(239,68,68,0.4)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '80px' }}>Avg Watts<br/><span style={{ fontSize: '8px', fontWeight: 400, color: '#334155' }}>W</span></th></>}<th style={{ padding: '8px 6px', textAlign: 'center' as const, fontSize: '10px', fontWeight: 700, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-display)', borderBottom: '2px solid rgba(59,130,246,0.2)', borderLeft: '1px solid rgba(59,130,246,0.1)', minWidth: '30px' }}></th></tr><tr style={{ background: 'rgba(5,15,35,0.3)' }}><th style={{ padding: '4px 12px', borderBottom: '1px solid rgba(59,130,246,0.1)' }}></th><th style={{ padding: '4px 6px', borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>{['ft','in','ft','in'].map((label, i) => <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0||i===2 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>)}<th style={{ padding: '4px 6px', borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th>{['ft','in'].map((label, i) => <th key={i} style={{ padding: '4px 6px', textAlign: 'center' as const, fontSize: '9px', color: '#334155', fontWeight: 500, borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: i===0 ? '1px solid rgba(59,130,246,0.1)' : 'none' }}>{label}</th>)}{isU12Team ? <th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '2px solid rgba(52,211,153,0.3)' }}></th> : <><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '2px solid rgba(59,130,246,0.3)' }}></th><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th><th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th></>}<th style={{ borderBottom: '1px solid rgba(59,130,246,0.1)', borderLeft: '1px solid rgba(59,130,246,0.1)' }}></th></tr></thead><tbody>{athletes.map(athlete => { const r = getResult(athlete.id); const status = saveStatus[athlete.id]; const disabled = isLocked; const inputStyle = disabled ? lockedInput : inputBase; return <tr key={athlete.id} style={{ borderBottom: '1px solid rgba(59,130,246,0.04)' }}><td style={{ padding: '8px 12px', color: '#e2e8f0', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap' as const }}>{athlete.last_name}, {athlete.first_name}</td><td style={{ padding: '4px 6px' }}><input type="number" step="0.001" value={r.sprint ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'sprint', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="8" value={r.height_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'height_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.height_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'height_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="8" value={r.wingspan_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'wingspan_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.wingspan_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'wingspan_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td><td style={{ padding: '4px 6px' }}><input type="number" step="0.1" value={r.vertical ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'vertical', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" value={r.broad_jump_ft ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'broad_jump_ft', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '50px' }} placeholder="ft" /></td><td style={{ padding: '4px 4px' }}><input type="number" min="0" max="11" step="0.25" value={r.broad_jump_in ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'broad_jump_in', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={{ ...inputStyle, width: '55px' }} placeholder="in" /></td>{isU12Team ? <td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(52,211,153,0.15)' }}><input type="number" step="0.1" value={r.chinup_hold ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinup_hold', e.target.value ? parseFloat(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td> : <><td style={{ padding: '4px 6px', borderLeft: '2px solid rgba(59,130,246,0.15)' }}><input type="number" min="0" value={r.chinups ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'chinups', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td><td style={{ padding: '4px 6px' }}><input type="text" value={r.mile02_time ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_time', e.target.value)} disabled={disabled} style={inputStyle} placeholder="0" /></td><td style={{ padding: '4px 6px' }}><input type="number" value={r.mile02_watts ?? ''} onChange={e => updateField(athlete.id, `${athlete.first_name} ${athlete.last_name}`, 'mile02_watts', e.target.value ? parseInt(e.target.value) : '')} disabled={disabled} style={inputStyle} placeholder="—" /></td></>}<td style={{ padding: '4px 6px', textAlign: 'center' as const, width: '30px' }}>{status === 'saving' && <span style={{ color: '#64748b', fontSize: '10px' }}>…</span>}{status === 'saved' && <span style={{ color: '#34d399', fontSize: '10px' }}>✓</span>}{status === 'error' && <span style={{ color: '#f87171', fontSize: '10px' }}>✕</span>}</td></tr> })}</tbody></table></div></div>}
       {selectedTeam && !loading && athletes.length === 0 && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>No {selectedRosterPhase} athletes found for {selectedTeam} in {selectedSeason}</p></div>}
       {!selectedTeam && <div style={{ background: 'rgba(10,20,40,0.8)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: '10px', padding: '48px', textAlign: 'center' }}><p style={{ color: '#475569', margin: 0 }}>Select a team to begin entering combine results</p></div>}
     </div>
