@@ -18,6 +18,21 @@ function normalizeRole(role?: string | null) {
   return normalized
 }
 
+async function getRequestUser(request: Request) {
+  const authHeader = request.headers.get('authorization')
+  const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
+
+  if (token) {
+    const admin = getAdminClient()
+    const { data, error } = await admin.auth.getUser(token)
+    if (!error && data.user) return data.user
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
+
 async function canViewAudit(user: { id: string; email?: string | null }) {
   const email = (user.email || '').toLowerCase()
   if (SUPERADMIN_EMAILS.some(e => e.toLowerCase() === email)) return true
@@ -35,8 +50,7 @@ async function canViewAudit(user: { id: string; email?: string | null }) {
 }
 
 export async function GET(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getRequestUser(request)
 
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -64,8 +78,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getRequestUser(request)
 
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
