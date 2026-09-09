@@ -26,6 +26,22 @@ const PALETTE: Record<string, { color: string; bg: string; border: string }> = {
   LOGIN: { color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', border: 'rgba(251,191,36,0.25)' },
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  sprint: '10 m Sprint',
+  height_ft: 'Height (ft)',
+  height_in: 'Height (in)',
+  wingspan_ft: 'Wingspan (ft)',
+  wingspan_in: 'Wingspan (in)',
+  vertical: 'Vertical Jump',
+  broad_jump_ft: 'Broad Jump (ft)',
+  broad_jump_in: 'Broad Jump (in)',
+  chinup_hold: 'Chin Hold',
+  chinups: 'Chin-ups',
+  mile02_time: 'Mile / 02 Time',
+  mile02_watts: 'Mile / 02 Watts',
+  notes: 'Notes',
+}
+
 const FALLBACK = { color: '#94a3b8', bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.20)' }
 const LIMIT = 100
 
@@ -37,12 +53,36 @@ function formatTime(value: string) {
   })
 }
 
+function prettyField(field: string) {
+  return FIELD_LABELS[field] || field.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function displayValue(value: any) {
+  if (value === null || value === undefined || value === '') return 'cleared'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function combineValueLines(log: AuditLog) {
+  const d = log.details || {}
+  const values = d.values && typeof d.values === 'object' ? d.values as Record<string, any> : null
+  const changedFields = Array.isArray(d.changed_fields) ? d.changed_fields as string[] : []
+
+  if (values) {
+    const fields = changedFields.length ? changedFields : Object.keys(values)
+    return fields.map(field => `${prettyField(field)}: ${displayValue(values[field])}`)
+  }
+
+  if (d.field) return [`${prettyField(String(d.field))}: ${displayValue(d.value)}`]
+  return []
+}
+
 function readableDetails(log: AuditLog) {
   const d = log.details || {}
   if (log.action === 'COMBINE_ENTRY') {
-    const changed = Array.isArray(d.changed_fields) ? d.changed_fields.join(', ') : d.field || 'result'
-    const value = d.value !== undefined ? ` = ${String(d.value)}` : ''
-    return `${d.athlete || 'Athlete'} · ${d.team || 'team'} · ${d.season || ''} · ${changed}${value}`
+    const values = combineValueLines(log)
+    const prefix = `${d.athlete || 'Athlete'} · ${d.team || 'team'} · ${d.season || ''}`
+    return values.length ? `${prefix} · ${values.join(' · ')}` : `${prefix} · legacy entry (value was not recorded)`
   }
   if (log.table_name === 'combine_entries') {
     return `${d.athlete || 'Athlete'} · ${d.team || 'team'} · ${d.test || 'test'}${d.score !== undefined ? ` = ${d.score}` : ''} · ${d.month || ''} ${d.year || ''}`
@@ -154,7 +194,7 @@ export default function AuditPage() {
                     <td style={{ padding: '10px 14px', color: '#64748b', fontSize: 11, whiteSpace: 'nowrap' }}>{formatTime(log.created_at)}</td>
                     <td style={{ padding: '10px 14px', color: '#cbd5e1', fontSize: 11, whiteSpace: 'nowrap' }}>{log.user_email || 'System'}</td>
                     <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}><span style={{ display: 'inline-block', padding: '3px 7px', borderRadius: 4, color: c.color, background: c.bg, border: `1px solid ${c.border}`, fontSize: 10, fontWeight: 700 }}>{log.action.replaceAll('_', ' ')}</span></td>
-                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: 11, minWidth: 340 }}>{readableDetails(log)}</td>
+                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: 11, minWidth: 500, whiteSpace: 'normal', lineHeight: 1.5 }}>{readableDetails(log)}</td>
                   </tr>
                 })}
               </tbody>
