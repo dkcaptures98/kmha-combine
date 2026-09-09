@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,6 +55,7 @@ function readableDetails(log: AuditLog) {
 }
 
 export default function AuditPage() {
+  const supabase = createClient()
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -65,7 +67,14 @@ export default function AuditPage() {
     if (!silent) setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/audit?limit=${LIMIT}&offset=0&_=${Date.now()}`, { cache: 'no-store' })
+      const { data: { session } } = await supabase.auth.getSession()
+      const headers: Record<string, string> = {}
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`
+
+      const res = await fetch(`/api/audit?limit=${LIMIT}&offset=0&_=${Date.now()}`, {
+        cache: 'no-store',
+        headers,
+      })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || 'Could not load audit log.')
       setLogs(Array.isArray(data.logs) ? data.logs : [])
