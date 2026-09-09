@@ -15,10 +15,48 @@ function valueOf(input: HTMLInputElement | undefined, numeric = true) {
   return numeric ? Number(input.value) : input.value
 }
 
+function currentRosterPhase() {
+  const month = new Date().getMonth() // 0 = January
+  return month >= 3 && month <= 7 ? 'offseason' : 'inseason'
+}
+
 export default function CombineManualSave() {
   const pathname = usePathname()
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    if (pathname !== '/combine') return
+
+    let cancelled = false
+    let attempts = 0
+
+    const applyDetectedPhase = () => {
+      if (cancelled) return
+      attempts++
+
+      const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[]
+      const phaseSelect = selects.find(s =>
+        Array.from(s.options).some(o => o.value === 'offseason') &&
+        Array.from(s.options).some(o => o.value === 'inseason')
+      )
+
+      if (!phaseSelect) {
+        if (attempts < 20) window.setTimeout(applyDetectedPhase, 100)
+        return
+      }
+
+      const detected = currentRosterPhase()
+      if (phaseSelect.value !== detected) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+        setter?.call(phaseSelect, detected)
+        phaseSelect.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+    }
+
+    applyDetectedPhase()
+    return () => { cancelled = true }
+  }, [pathname])
 
   useEffect(() => {
     if (pathname !== '/combine') return
