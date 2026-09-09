@@ -32,7 +32,7 @@ function weekStartFromInput(value: string) {
   return toDateInput(getMonday(new Date(value + 'T12:00:00')))
 }
 
-export default function TestingSessionGuide() {
+export default function TestingSessionGuide({ embedded = false }: { embedded?: boolean }) {
   const pathname = usePathname()
   const relevant = pathname === '/schedule' || pathname === '/entry' || pathname === '/combine'
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([])
@@ -161,50 +161,60 @@ export default function TestingSessionGuide() {
     )
   }
 
-  if (pathname !== '/schedule') return null
+  if (pathname !== '/schedule' || !embedded) return null
 
   return (
-    <div style={{ margin: '18px auto 0', width: 'min(1180px, calc(100% - 32px))', background: 'rgba(10,20,40,0.92)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 12, padding: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <p style={{ margin: 0, fontSize: 11, color: '#64748b', fontWeight: 700, letterSpacing: '0.08em' }}>TESTING SESSION TYPE</p>
-          <h2 style={{ margin: '4px 0 0', fontSize: 20, color: mode === 'annual' ? '#fbbf24' : mode === 'weekly' ? '#60a5fa' : '#94a3b8', fontFamily: 'var(--font-display)' }}>
-            THIS WEEK: {mode === 'annual' ? 'ANNUAL COMBINE' : mode === 'weekly' ? 'WEEKLY TESTING' : 'NOT SCHEDULED'}
-          </h2>
-        </div>
-        {mode !== 'none' && <span style={{ fontSize: 12, color: '#94a3b8' }}>{mode === 'annual' ? 'Staff are directed to Annual Combine entry.' : 'Staff are directed to Weekly Data Entry.'}</span>}
-      </div>
-
-      {isAdmin && (
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(59,130,246,0.12)' }}>
-          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#94a3b8' }}>
-            To schedule <strong style={{ color: '#60a5fa' }}>Weekly Testing</strong>, use the existing <strong>+ Add Week</strong> section below and choose the tests. To schedule an <strong style={{ color: '#fbbf24' }}>Annual Combine</strong>, use this control.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(170px,220px) minmax(220px,1fr) auto', gap: 10, alignItems: 'end' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 10, color: '#64748b', marginBottom: 5 }}>ANNUAL COMBINE WEEK</label>
-              <input type="date" value={selectedWeek} onChange={e => { setSelectedWeek(e.target.value); setMessage('') }} style={{ width: '100%', background: 'rgba(5,15,35,0.9)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: 7, padding: '8px 10px', colorScheme: 'dark' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 10, color: '#64748b', marginBottom: 5 }}>NOTES (OPTIONAL)</label>
-              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Sept annual combine, all teams" style={{ width: '100%', background: 'rgba(5,15,35,0.9)', border: '1px solid rgba(59,130,246,0.25)', color: 'white', borderRadius: 7, padding: '8px 10px' }} />
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {selectedAnnual ? (
-                <button type="button" disabled={saving} onClick={removeAnnual} style={{ padding: '9px 14px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#f87171', fontWeight: 800, cursor: saving ? 'wait' : 'pointer' }}>
-                  REMOVE ANNUAL
-                </button>
-              ) : (
-                <button type="button" disabled={saving} onClick={scheduleAnnual} style={{ padding: '9px 14px', borderRadius: 7, border: '1px solid rgba(251,191,36,0.35)', background: 'rgba(251,191,36,0.1)', color: '#fbbf24', fontWeight: 800, cursor: saving ? 'wait' : 'pointer' }}>
-                  {saving ? 'SAVING…' : 'SCHEDULE ANNUAL'}
-                </button>
-              )}
-            </div>
+    <section style={{ margin: '0 0 22px', background: 'linear-gradient(180deg, rgba(12,27,52,0.96), rgba(7,18,36,0.96))', border: '1px solid rgba(59,130,246,0.18)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.18)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,0.8fr) minmax(320px,1.4fr)', gap: 0 }}>
+        <div style={{ padding: '18px 20px', borderRight: '1px solid rgba(59,130,246,0.12)', background: mode === 'annual' ? 'rgba(251,191,36,0.04)' : mode === 'weekly' ? 'rgba(59,130,246,0.05)' : 'rgba(255,255,255,0.01)' }}>
+          <p style={{ margin: 0, fontSize: 10, color: '#64748b', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Current testing mode</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: mode === 'annual' ? '#fbbf24' : mode === 'weekly' ? '#60a5fa' : '#475569', boxShadow: mode === 'none' ? 'none' : `0 0 10px ${mode === 'annual' ? 'rgba(251,191,36,0.55)' : 'rgba(96,165,250,0.55)'}` }} />
+            <h2 style={{ margin: 0, fontSize: 20, color: mode === 'annual' ? '#fbbf24' : mode === 'weekly' ? '#60a5fa' : '#94a3b8', fontFamily: 'var(--font-display)', letterSpacing: '0.04em' }}>
+              {mode === 'annual' ? 'ANNUAL COMBINE' : mode === 'weekly' ? 'WEEKLY TESTING' : 'NOT SCHEDULED'}
+            </h2>
           </div>
-          {selectedHasWeekly && !selectedAnnual && <p style={{ margin: '8px 0 0', color: '#fbbf24', fontSize: 11 }}>⚠ This week already has Weekly Testing scheduled.</p>}
-          {message && <p style={{ margin: '10px 0 0', color: message.startsWith('⚠') ? '#fbbf24' : '#34d399', fontSize: 12 }}>{message}</p>}
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+            {mode === 'annual' ? 'Staff are routed to Annual Combine entry.' : mode === 'weekly' ? 'Staff are routed to Weekly Data Entry.' : 'Choose the testing session type for the week.'}
+          </p>
         </div>
-      )}
-    </div>
+
+        <div style={{ padding: '16px 18px' }}>
+          {isAdmin ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: 10, color: '#64748b', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Session routing</p>
+                  <p style={{ margin: '3px 0 0', fontSize: 12, color: '#94a3b8' }}>Weekly tests use <strong style={{ color: '#60a5fa' }}>+ Add Week</strong>. Annual Combine is scheduled here.</p>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '180px minmax(180px,1fr) auto', gap: 10, alignItems: 'end' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 9, color: '#64748b', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em' }}>ANNUAL WEEK</label>
+                  <input type="date" value={selectedWeek} onChange={e => { setSelectedWeek(e.target.value); setMessage('') }} style={{ width: '100%', background: 'rgba(2,11,24,0.82)', border: '1px solid rgba(59,130,246,0.22)', color: 'white', borderRadius: 7, padding: '8px 10px', colorScheme: 'dark' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 9, color: '#64748b', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em' }}>NOTES</label>
+                  <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Sept annual combine, all teams" style={{ width: '100%', background: 'rgba(2,11,24,0.82)', border: '1px solid rgba(59,130,246,0.22)', color: 'white', borderRadius: 7, padding: '8px 10px' }} />
+                </div>
+                {selectedAnnual ? (
+                  <button type="button" disabled={saving} onClick={removeAnnual} style={{ padding: '9px 14px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#f87171', fontWeight: 800, cursor: saving ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+                    REMOVE ANNUAL
+                  </button>
+                ) : (
+                  <button type="button" disabled={saving} onClick={scheduleAnnual} style={{ padding: '9px 14px', borderRadius: 7, border: '1px solid rgba(251,191,36,0.35)', background: 'linear-gradient(135deg, rgba(180,83,9,0.28), rgba(217,119,6,0.16))', color: '#fbbf24', fontWeight: 800, cursor: saving ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+                    {saving ? 'SAVING…' : 'SCHEDULE ANNUAL'}
+                  </button>
+                )}
+              </div>
+              {selectedHasWeekly && !selectedAnnual && <p style={{ margin: '8px 0 0', color: '#fbbf24', fontSize: 11 }}>⚠ This week already has Weekly Testing scheduled.</p>}
+              {message && <p style={{ margin: '8px 0 0', color: message.startsWith('⚠') ? '#fbbf24' : '#34d399', fontSize: 11 }}>{message}</p>}
+            </>
+          ) : (
+            <p style={{ margin: 0, color: '#64748b', fontSize: 12 }}>Session type is controlled by an administrator.</p>
+          )}
+        </div>
+      </div>
+    </section>
   )
 }
