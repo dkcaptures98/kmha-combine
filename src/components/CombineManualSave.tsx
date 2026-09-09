@@ -21,27 +21,28 @@ export default function CombineManualSave() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
-  // Annual Combine writes use a service-role API, so explicitly attach the
-  // signed-in browser session. This lets the API attribute every audit row to
-  // the staff member who actually entered/saved the value.
+  // Establish a server-verified identity cookie for audit attribution. This is
+  // intentionally separate from the save request so both autosave and Manual
+  // Save All are attributed to the signed-in account on every device.
   useEffect(() => {
     if (pathname !== '/combine') return
-    const supabase = createClient()
-    const originalFetch = window.fetch.bind(window)
+    let cancelled = false
 
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-      const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
-      if (url.includes('/api/combine') && !url.includes('/api/combine-lock') && method === 'POST') {
+    const registerIdentity = async () => {
+      try {
+        const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
-        const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined))
-        if (session?.access_token) headers.set('Authorization', `Bearer ${session.access_token}`)
-        return originalFetch(input, { ...init, headers })
-      }
-      return originalFetch(input, init)
+        if (!session?.access_token || cancelled) return
+        await fetch('/api/audit-identity', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: 'no-store',
+        })
+      } catch {}
     }
 
-    return () => { window.fetch = originalFetch }
+    registerIdentity()
+    return () => { cancelled = true }
   }, [pathname])
 
   useEffect(() => {
