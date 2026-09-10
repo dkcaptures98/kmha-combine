@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
@@ -12,39 +11,42 @@ function adminClient() {
 }
 
 const META_FIELDS = new Set(['id','athlete_id','athlete_name','team','season','created_at','updated_at'])
+const GET_CACHE_TTL_MS = 10000
+const getCache = new Map<string, { expires: number; data: any[] }>()
 
-async function authenticatedIdentity(request: Request) {
-  const supabase = await createClient()
-  const { data: { user: cookieUser } } = await supabase.auth.getUser()
-  if (cookieUser) return cookieUser.email || cookieUser.id
-
-  const authHeader = request.headers.get('authorization') || ''
-  if (authHeader.toLowerCase().startsWith('bearer ')) {
-    const token = authHeader.slice(7).trim()
-    if (token) {
-      const admin = adminClient()
-      const { data, error } = await admin.auth.getUser(token)
-      if (!error && data.user) return data.user.email || data.user.id
-    }
-  }
-
+async function auditIdentity() {
+  // Do not call Supabase Auth on every save during a live event. The validated
+  // audit cookie is enough for attribution and avoids extra pressure on Auth.
   const cookieStore = await cookies()
   return cookieStore.get('kmha_audit_identity')?.value || null
 }
 
 export async function GET(request: Request) {
-  const supabase = await createClient()
   const { searchParams } = new URL(request.url)
   const team = searchParams.get('team')
   const season = searchParams.get('season')
+  const cacheKey = `${team || '*'}|${season || '*'}`
+  const cached = getCache.get(cacheKey)
 
-  let query = supabase.from('combine_results').select('*').order('athlete_name')
+  if (cached && cached.expires > Date.now()) {
+    return NextResponse.json(cached.data, {
+      headers: { 'Cache-Control': 'private, max-age=0, s-maxage=10, stale-while-revalidate=20' },
+    })
+  }
+
+  const admin = adminClient()
+  let query = admin.from('combine_results').select('*').order('athlete_name')
   if (team) query = query.eq('team', team)
   if (season) query = query.eq('season', season)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data || [])
+
+  const rows = data || []
+  getCache.set(cacheKey, { expires: Date.now() + GET_CACHE_TTL_MS, data: rows })
+  return NextResponse.json(rows, {
+    headers: { 'Cache-Control': 'private, max-age=0, s-maxage=10, stale-while-revalidate=20' },
+  })
 }
 
 export async function POST(request: Request) {
@@ -53,9 +55,7 @@ export async function POST(request: Request) {
     if (!body.athlete_id) return NextResponse.json({ error: 'athlete_id is required.' }, { status: 400 })
     if (!body.season) return NextResponse.json({ error: 'season is required.' }, { status: 400 })
 
-    // Identity is for auditing only. A stale/missing browser session must NEVER
-    // prevent testing data from being written during a live combine.
-    const userIdentity = await authenticatedIdentity(request)
+    const userIdentity = await auditIdentity()
     const admin = adminClient()
 
     const payload = {
@@ -71,6 +71,10 @@ export async function POST(request: Request) {
       .select()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Any successful write invalidates the small server cache so the next read
+    // refreshes from Supabase without every device hammering the database.
+    getCache.clear()
 
     const changedFields = Object.keys(body).filter(key => !META_FIELDS.has(key))
     const changedValues: Record<string, any> = {}
