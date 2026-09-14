@@ -66,6 +66,7 @@ export async function POST(request: Request) {
     const rosterPhase = clean(body.roster_phase || body.rosterPhase || 'offseason').toLowerCase()
     const selectedTeam = clean(body.team || '')
     const dryRun = body.dryRun !== false
+    const allowOverwriteExisting = body.allowOverwriteExisting === true
     const grid: any[][] = Array.isArray(body.grid) ? body.grid : []
     if (!selectedTeam) return NextResponse.json({ error: 'Team is required.' }, { status: 400 })
     if (!grid.length) return NextResponse.json({ error: 'No spreadsheet data found.' }, { status: 400 })
@@ -147,7 +148,7 @@ export async function POST(request: Request) {
         if (isOlder) out.chinups = chin; else out.chinup_hold = chin
         out.mile02_time = assaultTimeCol >= 0 ? clean(row[assaultTimeCol] || '') || null : null
         out.mile02_watts = assaultWattCol >= 0 ? intNum(row[assaultWattCol]) : null
-        rowsWithResults += ['sprint','height_ft','height_in','wingspan_ft','wingspan_in','vertical','broad_jump_ft','broad_jump_in','chinup_hold','chinups','mile02_time','mile02_watts'].some(k => out[k] !== null && out[k] !== undefined && out[k] !== '') ? 1 : 0
+        rowsWithResults += hasAnyResult(out) ? 1 : 0
         resultMap.set(athlete.id, out)
       }
     }
@@ -155,10 +156,48 @@ export async function POST(request: Request) {
     const matched = Array.from(resultMap.values())
     const teamCounts = matched.reduce<Record<string, number>>((acc, row) => { acc[row.team] = (acc[row.team] || 0) + 1; return acc }, {})
     if (dryRun) return NextResponse.json({ dryRun: true, season, roster_phase: rosterPhase, teamsDetected: [selectedTeam], rowsWithNames, rowsWithResults, matched: matched.length, missing: missing.length, missingExamples: missing.slice(0, 30), readyToImport: matched.length, teamCounts, format: isLongFormat ? 'long' : 'wide' })
+
     if (matched.length > 0) {
+      const athleteIds = matched.map(row => row.athlete_id)
+      const { data: existingResults, error: existingError } = await db
+        .from('combine_results')
+        .select('athlete_id, athlete_name, team, season')
+        .eq('season', season)
+        .in('athlete_id', athleteIds)
+
+      if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 })
+
+      if ((existingResults?.length || 0) > 0 && !allowOverwriteExisting) {
+        return NextResponse.json({
+          error: `Import blocked: ${existingResults!.length} ${rosterPhase} combine result record(s) already exist. This safety check prevents accidental overwrites.`,
+          code: 'EXISTING_RESULTS_BLOCKED',
+          roster_phase: rosterPhase,
+          existing: existingResults,
+          hint: 'Use the correct roster phase. Existing annual combine results will not be overwritten by the import tool.',
+        }, { status: 409 })
+      }
+
       const { error } = await db.from('combine_results').upsert(matched, { onConflict: 'athlete_id,season' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      const auditRows = matched.map(row => ({
+        action: 'COMBINE_ENTRY',
+        table_name: 'combine_results',
+        user_email: 'combine-import',
+        record_id: row.athlete_id,
+        details: {
+          athlete: row.athlete_name,
+          team: row.team,
+          season: row.season,
+          roster_phase: rosterPhase,
+          source: 'combine_import',
+          values: row,
+        },
+      }))
+      const { error: auditError } = await db.from('audit_log').insert(auditRows)
+      if (auditError) console.error('Combine import audit failed:', auditError.message)
     }
+
     return NextResponse.json({ dryRun: false, season, roster_phase: rosterPhase, imported: matched.length, skippedMissing: missing.length, teamCounts, format: isLongFormat ? 'long' : 'wide' })
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Combine import failed.' }, { status: 500 })
