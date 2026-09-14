@@ -11,6 +11,12 @@ function clean(v: unknown) { return String(v ?? '').replace(/^\uFEFF/, '').repla
 function displayName(v: string) { return clean(v).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[‘’´`]/g, "'").replace(/[“”]/g, '"').replace(/[^a-zA-Z '\-]/g, '').replace(/\s+/g, ' ').trim().toUpperCase() }
 function nameKey(v: string) { return displayName(v).replace(/[^A-Z]/g, '') }
 function personKey(first: string, last: string) { return `${nameKey(first)}|${nameKey(last)}` }
+function makeInseasonId(season: string, team: string, firstName: string, lastName: string) {
+  return `${season}-inseason-${team}-${firstName}-${lastName}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
 function num(v: any) { const n = parseFloat(clean(v)); return Number.isFinite(n) ? n : null }
 function intNum(v: any) { const n = parseInt(clean(v), 10); return Number.isFinite(n) ? n : null }
 function parseFtIn(raw: any) {
@@ -83,10 +89,47 @@ export async function POST(request: Request) {
     if (firstCol < 0 || lastCol < 0) return NextResponse.json({ error: 'First and Last columns are required.' }, { status: 400 })
 
     const db = admin()
-    const { data: athletes, error: athleteError } = await db.from('athletes').select('id, first_name, last_name, team, season, roster_phase').eq('season', season).eq('roster_phase', rosterPhase).eq('team', selectedTeam)
-    if (athleteError) return NextResponse.json({ error: athleteError.message }, { status: 500 })
+
+    let athleteQuery = await db.from('athletes').select('id, first_name, last_name, team, season, roster_phase, active').eq('season', season).eq('roster_phase', rosterPhase).eq('team', selectedTeam)
+    if (athleteQuery.error) return NextResponse.json({ error: athleteQuery.error.message }, { status: 500 })
+    let athletes = athleteQuery.data || []
+
+    // The combine importer must use the same in-season roster-sync rule as /api/athletes.
+    // Without this, a team can appear in the UI but the importer sees zero or a partial roster.
+    if (rosterPhase === 'inseason') {
+      const offseasonQuery = await db.from('athletes')
+        .select('id, first_name, last_name, team, season, roster_phase, active')
+        .eq('season', season)
+        .eq('roster_phase', 'offseason')
+        .eq('team', selectedTeam)
+
+      if (offseasonQuery.error) return NextResponse.json({ error: offseasonQuery.error.message }, { status: 500 })
+
+      const existingKeys = new Set(athletes.map(a => personKey(a.first_name, a.last_name)))
+      const missingInseasonRows = (offseasonQuery.data || [])
+        .filter(a => !existingKeys.has(personKey(a.first_name, a.last_name)))
+        .map(a => ({
+          id: makeInseasonId(season, selectedTeam, a.first_name || '', a.last_name || ''),
+          first_name: a.first_name,
+          last_name: a.last_name,
+          team: selectedTeam,
+          season,
+          roster_phase: 'inseason',
+          active: a.active !== false,
+        }))
+
+      if (missingInseasonRows.length > 0) {
+        const { error: syncError } = await db.from('athletes').upsert(missingInseasonRows, { onConflict: 'id' })
+        if (syncError) return NextResponse.json({ error: `Inseason roster sync failed: ${syncError.message}` }, { status: 500 })
+
+        athleteQuery = await db.from('athletes').select('id, first_name, last_name, team, season, roster_phase, active').eq('season', season).eq('roster_phase', 'inseason').eq('team', selectedTeam)
+        if (athleteQuery.error) return NextResponse.json({ error: athleteQuery.error.message }, { status: 500 })
+        athletes = athleteQuery.data || []
+      }
+    }
+
     const athleteMap = new Map<string, any>()
-    for (const a of athletes || []) athleteMap.set(personKey(a.first_name, a.last_name), a)
+    for (const a of athletes) athleteMap.set(personKey(a.first_name, a.last_name), a)
 
     const isOlder = !['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA'].includes(selectedTeam)
     const resultMap = new Map<string, any>()
