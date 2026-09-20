@@ -25,15 +25,43 @@ function seasonFromDates(dates: Date[]) {
 export async function GET(request: Request) {
   const supabase = await createClient()
   const { searchParams } = new URL(request.url)
-  let q = supabase.from('attendance_imports').select('*').order('updated_at', { ascending: false })
   const athleteId = searchParams.get('athlete_id')
   const season = searchParams.get('season')
   const team = searchParams.get('team')
+
+  let q = supabase.from('attendance_imports').select('*').order('updated_at', { ascending: false })
   if (athleteId) q = q.eq('athlete_id', athleteId)
   if (season) q = q.eq('season', season)
   if (team) q = q.eq('team', team)
-  const { data, error } = await q
+  let { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Annual report-card URLs use a generated/seasonal athlete id, while TeamBuildr
+  // attendance is stored against the canonical athletes-table id. If the direct
+  // lookup misses, resolve the report id by athlete name + team and return that
+  // athlete's attendance record.
+  if (athleteId && (!data || !data.length)) {
+    let aq = supabase.from('attendance_imports').select('*').order('updated_at', { ascending: false })
+    if (season) aq = aq.eq('season', season)
+    if (team) aq = aq.eq('team', team)
+    const allAttendance = await aq
+    if (allAttendance.error) return NextResponse.json({ error: allAttendance.error.message }, { status: 500 })
+
+    const rows = allAttendance.data ?? []
+    if (rows.length) {
+      const ids = [...new Set(rows.map(r => String(r.athlete_id)).filter(Boolean))]
+      const athletesResult = await supabase.from('athletes').select('id,first_name,last_name,team').in('id', ids)
+      if (athletesResult.error) return NextResponse.json({ error: athletesResult.error.message }, { status: 500 })
+      const reportKey = norm(athleteId)
+      const athlete = (athletesResult.data ?? []).find(a => {
+        const nameKey = norm(`${a.first_name}${a.last_name}`)
+        const teamKey = norm(a.team)
+        return !!nameKey && reportKey.endsWith(nameKey) && (!teamKey || reportKey.includes(teamKey))
+      })
+      if (athlete) data = rows.filter(r => String(r.athlete_id) === String(athlete.id))
+    }
+  }
+
   return NextResponse.json(data ?? [])
 }
 
