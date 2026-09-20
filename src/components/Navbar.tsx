@@ -96,6 +96,7 @@ export default function Navbar() {
 
   const links = role ? (linksByRole[role] || linksByRole.data_entry || linksByRole.coach) : []
   const badge = role ? badgeMap[role] : null
+  const isAdmin = role === 'superadmin' || role === 'admin'
   const isActive = (href: string) => pathname === href || (pathname?.startsWith(href) && href !== '/')
 
   const linkStyle = (href: string) => ({
@@ -106,6 +107,13 @@ export default function Navbar() {
     border: `1px solid ${isActive(href) ? 'rgba(59,130,246,0.3)' : 'transparent'}`,
     display: 'block', whiteSpace: 'nowrap' as const,
   })
+
+  const backupStyle = {
+    padding: '4px 7px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+    textDecoration: 'none', fontFamily: 'var(--font-display)', letterSpacing: '0.03em',
+    color: '#34d399', background: 'rgba(52,211,153,0.08)',
+    border: '1px solid rgba(52,211,153,0.25)', display: 'block', whiteSpace: 'nowrap' as const,
+  }
 
   return (
     <nav style={{ background: 'rgba(2,11,24,0.95)', borderBottom: '1px solid rgba(59,130,246,0.15)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 40 }}>
@@ -118,6 +126,7 @@ export default function Navbar() {
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1px', flex: 1, justifyContent: 'center', overflow: 'hidden' }} className="hidden-mobile">
           {links.map(link => <Link key={link.href} href={link.href} style={linkStyle(link.href)}>{link.label}</Link>)}
+          {isAdmin && <a href="/api/combine-backup" style={backupStyle} title="Download a full raw backup of all Annual Combine data">↓ Backup</a>}
           {badge && <span style={{ marginLeft: '4px', padding: '2px 5px', borderRadius: '4px', fontSize: '8px', background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, fontFamily: 'var(--font-display)', fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' as const }}>{badge.label}</span>}
         </div>
         <button onClick={handleLogout} style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', background: 'transparent', border: '1px solid rgba(59,130,246,0.2)', color: '#475569', cursor: 'pointer', fontFamily: 'var(--font-display)', flexShrink: 0 }} className="hidden-mobile">Sign Out</button>
@@ -128,6 +137,7 @@ export default function Navbar() {
       {menuOpen && (
         <div style={{ background: 'rgba(2,11,24,0.98)', borderTop: '1px solid rgba(59,130,246,0.1)', padding: '12px 16px' }} className="show-mobile">
           {links.map(link => <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} style={{ ...linkStyle(link.href), padding: '10px 14px', marginBottom: '4px' }}>{link.label}</Link>)}
+          {isAdmin && <a href="/api/combine-backup" onClick={() => setMenuOpen(false)} style={{ ...backupStyle, padding: '10px 14px', marginBottom: '4px' }}>↓ Download Annual Combine Backup</a>}
           <button onClick={handleLogout} style={{ width: '100%', marginTop: '8px', padding: '10px', borderRadius: '6px', fontSize: '12px', background: 'transparent', border: '1px solid rgba(59,130,246,0.2)', color: '#475569', cursor: 'pointer', textAlign: 'left' as const }}>Sign Out</button>
         </div>
       )}
