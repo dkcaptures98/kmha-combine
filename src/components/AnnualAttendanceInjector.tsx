@@ -29,8 +29,8 @@ export default function AnnualAttendanceInjector(){
           document.getElementById('annual-attendance-summary')?.remove()
           node=document.createElement('div')
           node.id='annual-attendance-summary'
-          node.style.cssText='margin:8px 0 22px;padding:11px 14px;border:1px solid #dbeafe;border-radius:8px;background:#f8fbff;display:flex;align-items:center;justify-content:space-between;gap:16px;break-inside:avoid;page-break-inside:avoid;'
-          node.innerHTML=`<div><div style="font-size:9px;font-weight:800;color:#64748b;letter-spacing:.09em;text-transform:uppercase">Attendance</div><div style="font-size:18px;font-weight:900;color:#0f172a;margin-top:2px">${a.adjusted_attended} / ${a.total_sessions} sessions <span style="color:#2563eb">· ${Number(a.adjusted_percentage).toFixed(1)}%</span></div></div><div style="text-align:right;font-size:9px;color:#94a3b8">TeamBuildr attendance<br>includes +7% adjustment</div>`
+          node.style.cssText='margin:18px 0 26px;padding:12px 16px;border:1px solid #dbeafe;border-radius:8px;background:#f8fbff;display:flex;align-items:center;justify-content:space-between;gap:16px;break-inside:avoid;page-break-inside:avoid;'
+          node.innerHTML=`<div><div style="font-size:9px;font-weight:800;color:#64748b;letter-spacing:.09em;text-transform:uppercase">Attendance</div><div style="font-size:18px;font-weight:900;color:#0f172a;margin-top:3px">${a.adjusted_attended} / ${a.total_sessions} sessions <span style="color:#2563eb">· ${Number(a.adjusted_percentage).toFixed(1)}%</span></div></div>`
           heading.parentElement?.insertBefore(node,heading)
           return true
         }
