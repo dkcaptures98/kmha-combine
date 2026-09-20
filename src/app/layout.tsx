@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { Barlow_Condensed, Inter } from 'next/font/google'
 import CombineManualSave from '@/components/CombineManualSave'
 import TestingSessionGuide from '@/components/TestingSessionGuide'
@@ -27,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-rink-dark text-white font-body antialiased">
         <TestingSessionGuide />
         {children}
-        <AnnualAttendanceInjector />
+        <Suspense fallback={null}><AnnualAttendanceInjector /></Suspense>
         <CombineManualSave />
       </body>
     </html>
