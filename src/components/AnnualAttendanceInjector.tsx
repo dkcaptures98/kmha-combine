@@ -8,24 +8,47 @@ export default function AnnualAttendanceInjector(){
     if(pathname!=='/athlete-annual-report')return
     const athleteId=params.get('id'), season=params.get('season')||'2026-2027'
     if(!athleteId)return
-    let node:HTMLDivElement|null=null, cancelled=false
+
+    let node:HTMLDivElement|null=null
+    let cancelled=false
+    let observer:MutationObserver|null=null
+    let retryTimer:ReturnType<typeof setTimeout>|null=null
+
     const place=async()=>{
       try{
         const r=await fetch(`/api/attendance-import?athlete_id=${encodeURIComponent(athleteId)}&season=${encodeURIComponent(season)}`)
         if(!r.ok)return
-        const rows=await r.json(); if(cancelled||!Array.isArray(rows)||!rows.length)return
+        const rows=await r.json()
+        if(cancelled||!Array.isArray(rows)||!rows.length)return
         const a=rows[0]
-        const heading=[...document.querySelectorAll('h2')].find(h=>h.textContent?.includes('Annual Combine Score Summary'))
-        if(!heading)return
-        document.getElementById('annual-attendance-summary')?.remove()
-        node=document.createElement('div');node.id='annual-attendance-summary'
-        node.style.cssText='margin:8px 0 22px;padding:11px 14px;border:1px solid #dbeafe;border-radius:8px;background:#f8fbff;display:flex;align-items:center;justify-content:space-between;gap:16px;'
-        node.innerHTML=`<div><div style="font-size:9px;font-weight:800;color:#64748b;letter-spacing:.09em;text-transform:uppercase">Attendance</div><div style="font-size:18px;font-weight:900;color:#0f172a;margin-top:2px">${a.adjusted_attended} / ${a.total_sessions} sessions <span style="color:#2563eb">· ${Number(a.adjusted_percentage).toFixed(1)}%</span></div></div><div style="text-align:right;font-size:9px;color:#94a3b8">TeamBuildr attendance<br>includes +7% adjustment</div>`
-        heading.parentElement?.insertBefore(node,heading)
+
+        const insert=()=>{
+          if(cancelled)return true
+          const heading=[...document.querySelectorAll('h2')].find(h=>h.textContent?.includes('Annual Combine Score Summary'))
+          if(!heading)return false
+          document.getElementById('annual-attendance-summary')?.remove()
+          node=document.createElement('div')
+          node.id='annual-attendance-summary'
+          node.style.cssText='margin:8px 0 22px;padding:11px 14px;border:1px solid #dbeafe;border-radius:8px;background:#f8fbff;display:flex;align-items:center;justify-content:space-between;gap:16px;break-inside:avoid;page-break-inside:avoid;'
+          node.innerHTML=`<div><div style="font-size:9px;font-weight:800;color:#64748b;letter-spacing:.09em;text-transform:uppercase">Attendance</div><div style="font-size:18px;font-weight:900;color:#0f172a;margin-top:2px">${a.adjusted_attended} / ${a.total_sessions} sessions <span style="color:#2563eb">· ${Number(a.adjusted_percentage).toFixed(1)}%</span></div></div><div style="text-align:right;font-size:9px;color:#94a3b8">TeamBuildr attendance<br>includes +7% adjustment</div>`
+          heading.parentElement?.insertBefore(node,heading)
+          return true
+        }
+
+        if(insert())return
+        observer=new MutationObserver(()=>{if(insert())observer?.disconnect()})
+        observer.observe(document.body,{childList:true,subtree:true})
+        retryTimer=setTimeout(()=>{insert();observer?.disconnect()},4000)
       }catch{}
     }
-    const timer=setTimeout(place,250)
-    return()=>{cancelled=true;clearTimeout(timer);node?.remove()}
+
+    place()
+    return()=>{
+      cancelled=true
+      observer?.disconnect()
+      if(retryTimer)clearTimeout(retryTimer)
+      node?.remove()
+    }
   },[pathname,params])
   return null
 }
