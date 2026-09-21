@@ -37,10 +37,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const team = searchParams.get('team')
   const season = searchParams.get('season')
+  const rosterPhase = searchParams.get('roster_phase')
 
   let query = supabase.from('combine_results').select('*').order('athlete_name')
   if (team) query = query.eq('team', team)
   if (season) query = query.eq('season', season)
+  if (rosterPhase) query = query.eq('roster_phase', rosterPhase)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -53,22 +55,66 @@ export async function POST(request: Request) {
     if (!body.athlete_id) return NextResponse.json({ error: 'athlete_id is required.' }, { status: 400 })
     if (!body.season) return NextResponse.json({ error: 'season is required.' }, { status: 400 })
 
-    // Identity is for auditing only. A stale/missing browser session must NEVER
-    // prevent testing data from being written during a live combine.
     const userIdentity = await authenticatedIdentity(request)
     const admin = adminClient()
 
-    const payload = {
-      ...body,
-      athlete_name: body.athlete_name || '',
-      team: body.team || '',
-      season: body.season,
+    // The Sept 14 Annual Combine client does not send roster_phase in each
+    // field save. Resolve it from the athlete row so inseason/offseason data
+    // remains separated without relying on the old 2-column ON CONFLICT rule.
+    let rosterPhase = body.roster_phase as string | undefined
+    if (!rosterPhase) {
+      const { data: athlete, error: athleteError } = await admin
+        .from('athletes')
+        .select('roster_phase')
+        .eq('id', body.athlete_id)
+        .maybeSingle()
+
+      if (athleteError) return NextResponse.json({ error: athleteError.message }, { status: 500 })
+      rosterPhase = athlete?.roster_phase || undefined
     }
 
-    const { data, error } = await admin
+    if (!rosterPhase || !['offseason', 'inseason'].includes(rosterPhase)) {
+      return NextResponse.json({ error: 'Could not determine offseason/inseason roster phase for this athlete.' }, { status: 400 })
+    }
+
+    const { data: existing, error: existingError } = await admin
       .from('combine_results')
-      .upsert(payload, { onConflict: 'athlete_id,season' })
-      .select()
+      .select('*')
+      .eq('athlete_id', body.athlete_id)
+      .eq('season', body.season)
+      .eq('roster_phase', rosterPhase)
+      .maybeSingle()
+
+    if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 })
+
+    const changedPayload = {
+      ...body,
+      athlete_name: body.athlete_name || existing?.athlete_name || '',
+      team: body.team || existing?.team || '',
+      season: body.season,
+      roster_phase: rosterPhase,
+      updated_at: new Date().toISOString(),
+    }
+
+    let data: any[] | null = null
+    let error: any = null
+
+    if (existing?.id) {
+      const result = await admin
+        .from('combine_results')
+        .update(changedPayload)
+        .eq('id', existing.id)
+        .select()
+      data = result.data
+      error = result.error
+    } else {
+      const result = await admin
+        .from('combine_results')
+        .insert(changedPayload)
+        .select()
+      data = result.data
+      error = result.error
+    }
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -82,9 +128,10 @@ export async function POST(request: Request) {
       user_email: userIdentity || 'unverified-session',
       record_id: body.athlete_id,
       details: {
-        athlete: payload.athlete_name,
-        team: payload.team,
-        season: payload.season,
+        athlete: changedPayload.athlete_name,
+        team: changedPayload.team,
+        season: changedPayload.season,
+        roster_phase: rosterPhase,
         changed_fields: changedFields,
         values: changedValues,
         identity_verified: Boolean(userIdentity),
