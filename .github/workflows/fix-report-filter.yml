@@ -1,0 +1,32 @@
+name: Fix annual report filter
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply exact report-card filter fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/app/athlete-reports/page.tsx')
+          s = p.read_text()
+          old = "const annualAthleteIds = new Set(combineResults.filter(r => r.season === annualSeason && (!annualPhase || !r.roster_phase || r.roster_phase === annualPhase)).map(r => r.athlete_id).filter(Boolean) as string[])"
+          new = "const annualAthleteIds = new Set(combineResults.filter(r => r.season === annualSeason && r.roster_phase === annualPhase).map(r => r.athlete_id).filter(Boolean) as string[])"
+          if old not in s:
+              raise SystemExit('Expected filter not found; refusing to change anything')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit exact fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/athlete-reports/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Exclude historical athletes from annual report cards"
+          git push
