@@ -12,10 +12,7 @@ function displayName(v: string) { return clean(v).normalize('NFKD').replace(/[\u
 function nameKey(v: string) { return displayName(v).replace(/[^A-Z]/g, '') }
 function personKey(first: string, last: string) { return `${nameKey(first)}|${nameKey(last)}` }
 function makeInseasonId(season: string, team: string, firstName: string, lastName: string) {
-  return `${season}-inseason-${team}-${firstName}-${lastName}`
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
+  return `${season}-inseason-${team}-${firstName}-${lastName}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 function num(v: any) { const n = parseFloat(clean(v)); return Number.isFinite(n) ? n : null }
 function intNum(v: any) { const n = parseInt(clean(v), 10); return Number.isFinite(n) ? n : null }
@@ -40,19 +37,12 @@ function findHeaderRow(grid: any[][]) {
   }
   return -1
 }
-function findCol(keys: string[], patterns: (string | RegExp)[]) {
-  return keys.findIndex(k => patterns.some(p => typeof p === 'string' ? k.includes(p) : p.test(k)))
-}
+function findCol(keys: string[], patterns: (string | RegExp)[]) { return keys.findIndex(k => patterns.some(p => typeof p === 'string' ? k.includes(p) : p.test(k))) }
 function emptyCombineRow(athlete: any, selectedTeam: string, season: string) {
-  return {
-    athlete_id: athlete.id, athlete_name: `${athlete.first_name} ${athlete.last_name}`,
-    team: selectedTeam, season, sprint: null, height_ft: null, height_in: null, wingspan_ft: null, wingspan_in: null,
-    vertical: null, broad_jump_ft: null, broad_jump_in: null, chinup_hold: null, chinups: null, mile02_time: null, mile02_watts: null,
-  }
+  return { athlete_id: athlete.id, athlete_name: `${athlete.first_name} ${athlete.last_name}`, team: selectedTeam, season, sprint: null, height_ft: null, height_in: null, wingspan_ft: null, wingspan_in: null, vertical: null, broad_jump_ft: null, broad_jump_in: null, chinup_hold: null, chinups: null, mile02_time: null, mile02_watts: null }
 }
 function applyTest(out: any, testRaw: any, scoreRaw: any, isOlder: boolean) {
-  const test = headerKey(testRaw)
-  const score = clean(scoreRaw)
+  const test = headerKey(testRaw); const score = clean(scoreRaw)
   if (!score) return false
   if (test.includes('10m') || test.includes('sprint')) { out.sprint = num(score); return true }
   if (test.includes('broad')) { const b = parseFtIn(score); out.broad_jump_ft = b.ft; out.broad_jump_in = b.inch; return true }
@@ -74,125 +64,71 @@ export async function POST(request: Request) {
     const dryRun = body.dryRun !== false
     const allowOverwriteExisting = body.allowOverwriteExisting === true
     const grid: any[][] = Array.isArray(body.grid) ? body.grid : []
+    if (!['inseason','offseason'].includes(rosterPhase)) return NextResponse.json({ error: 'Roster phase must be inseason or offseason.' }, { status: 400 })
     if (!selectedTeam) return NextResponse.json({ error: 'Team is required.' }, { status: 400 })
     if (!grid.length) return NextResponse.json({ error: 'No spreadsheet data found.' }, { status: 400 })
 
     const headerRowIndex = findHeaderRow(grid)
     if (headerRowIndex < 0) return NextResponse.json({ error: 'Could not find header row.' }, { status: 400 })
     const headers = grid[headerRowIndex].map(headerKey)
-    const firstCol = findCol(headers, ['firstname', 'first'])
-    const lastCol = findCol(headers, ['lastname', 'last'])
-    const teamCol = findCol(headers, ['team'])
-    const testCol = findCol(headers, ['test'])
-    const scoreCol = findCol(headers, ['score'])
+    const firstCol = findCol(headers, ['firstname', 'first']); const lastCol = findCol(headers, ['lastname', 'last'])
+    const teamCol = findCol(headers, ['team']); const testCol = findCol(headers, ['test']); const scoreCol = findCol(headers, ['score'])
     const isLongFormat = testCol >= 0 && scoreCol >= 0
     if (firstCol < 0 || lastCol < 0) return NextResponse.json({ error: 'First and Last columns are required.' }, { status: 400 })
 
     const db = admin()
-
     let athleteQuery = await db.from('athletes').select('id, first_name, last_name, team, season, roster_phase, active').eq('season', season).eq('roster_phase', rosterPhase).eq('team', selectedTeam)
     if (athleteQuery.error) return NextResponse.json({ error: athleteQuery.error.message }, { status: 500 })
     let athletes = athleteQuery.data || []
 
-    // The combine importer must use the same in-season roster-sync rule as /api/athletes.
-    // Without this, a team can appear in the UI but the importer sees zero or a partial roster.
     if (rosterPhase === 'inseason') {
-      const offseasonQuery = await db.from('athletes')
-        .select('id, first_name, last_name, team, season, roster_phase, active')
-        .eq('season', season)
-        .eq('roster_phase', 'offseason')
-        .eq('team', selectedTeam)
-
+      const offseasonQuery = await db.from('athletes').select('id, first_name, last_name, team, season, roster_phase, active').eq('season', season).eq('roster_phase', 'offseason').eq('team', selectedTeam)
       if (offseasonQuery.error) return NextResponse.json({ error: offseasonQuery.error.message }, { status: 500 })
-
       const existingKeys = new Set(athletes.map(a => personKey(a.first_name, a.last_name)))
-      const missingInseasonRows = (offseasonQuery.data || [])
-        .filter(a => !existingKeys.has(personKey(a.first_name, a.last_name)))
-        .map(a => ({
-          id: makeInseasonId(season, selectedTeam, a.first_name || '', a.last_name || ''),
-          first_name: a.first_name,
-          last_name: a.last_name,
-          team: selectedTeam,
-          season,
-          roster_phase: 'inseason',
-          active: a.active !== false,
-        }))
-
+      const missingInseasonRows = (offseasonQuery.data || []).filter(a => !existingKeys.has(personKey(a.first_name, a.last_name))).map(a => ({ id: makeInseasonId(season, selectedTeam, a.first_name || '', a.last_name || ''), first_name: a.first_name, last_name: a.last_name, team: selectedTeam, season, roster_phase: 'inseason', active: a.active !== false }))
       if (missingInseasonRows.length > 0) {
         const { error: syncError } = await db.from('athletes').upsert(missingInseasonRows, { onConflict: 'id' })
         if (syncError) return NextResponse.json({ error: `Inseason roster sync failed: ${syncError.message}` }, { status: 500 })
-
         athleteQuery = await db.from('athletes').select('id, first_name, last_name, team, season, roster_phase, active').eq('season', season).eq('roster_phase', 'inseason').eq('team', selectedTeam)
         if (athleteQuery.error) return NextResponse.json({ error: athleteQuery.error.message }, { status: 500 })
         athletes = athleteQuery.data || []
       }
     }
 
-    const athleteMap = new Map<string, any>()
-    for (const a of athletes) athleteMap.set(personKey(a.first_name, a.last_name), a)
-
+    const athleteMap = new Map<string, any>(); for (const a of athletes) athleteMap.set(personKey(a.first_name, a.last_name), a)
     const isOlder = !['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA'].includes(selectedTeam)
-    const resultMap = new Map<string, any>()
-    const missing: any[] = []
-    let rowsWithNames = 0
-    let rowsWithResults = 0
+    const resultMap = new Map<string, any>(); const missing: any[] = []; let rowsWithNames = 0; let rowsWithResults = 0
 
     if (isLongFormat) {
       for (let r = headerRowIndex + 1; r < grid.length; r++) {
-        const row = grid[r] || []
-        const first = displayName(row[firstCol] || '')
-        const last = displayName(row[lastCol] || '')
+        const row = grid[r] || []; const first = displayName(row[firstCol] || ''); const last = displayName(row[lastCol] || '')
         if (!first || !last || first === 'FIRST' || last === 'LAST') continue
-        const rowTeam = teamCol >= 0 ? clean(row[teamCol]) : selectedTeam
-        if (rowTeam && rowTeam !== selectedTeam) continue
-        rowsWithNames++
-        const athlete = athleteMap.get(personKey(first, last))
+        const rowTeam = teamCol >= 0 ? clean(row[teamCol]) : selectedTeam; if (rowTeam && rowTeam !== selectedTeam) continue
+        rowsWithNames++; const athlete = athleteMap.get(personKey(first, last))
         if (!athlete) { missing.push({ first_name: first, last_name: last, team: selectedTeam, test: row[testCol], score: row[scoreCol] }); continue }
         const existing = resultMap.get(athlete.id) || emptyCombineRow(athlete, selectedTeam, season)
         if (applyTest(existing, row[testCol], row[scoreCol], isOlder)) rowsWithResults++
         resultMap.set(athlete.id, existing)
       }
     } else {
-      const sprintCol = findCol(headers, ['sprint', '10m'])
-      const broadFtCol = findCol(headers, ['broadjumpft', 'broadft'])
-      const broadInCol = findCol(headers, ['broadjumpin', 'broadin'])
-      const broadCol = broadFtCol >= 0 ? -1 : findCol(headers, ['broadjump'])
-      const chinHoldCol = findCol(headers, ['chinuphold', 'chinhold'])
-      const chinupsCol = findCol(headers, ['chinups', 'chinup'])
-      const verticalCol = findCol(headers, ['verticaljump', 'vertical'])
-      const assaultTimeCol = findCol(headers, ['km05time', '05kmasslttime', '05kmassaulttime', 'asslttime', 'assaulttime'])
-      const assaultWattCol = findCol(headers, ['km05watts', 'km05watt', '05kmassltwatt', '05kmassaultwatt', 'assltwatt', 'assaultwatt', 'watt'])
-      const heightFtCol = findCol(headers, ['heightft'])
-      const heightInCol = findCol(headers, ['heightin'])
-      const wingspanFtCol = findCol(headers, ['wingspanft'])
-      const wingspanInCol = findCol(headers, ['wingspanin'])
-      const heightCol = heightFtCol >= 0 ? -1 : findCol(headers, ['height'])
-      const wingspanCol = wingspanFtCol >= 0 ? -1 : findCol(headers, ['wingspan'])
+      const sprintCol = findCol(headers, ['sprint', '10m']); const broadFtCol = findCol(headers, ['broadjumpft', 'broadft']); const broadInCol = findCol(headers, ['broadjumpin', 'broadin']); const broadCol = broadFtCol >= 0 ? -1 : findCol(headers, ['broadjump'])
+      const chinHoldCol = findCol(headers, ['chinuphold', 'chinhold']); const chinupsCol = findCol(headers, ['chinups', 'chinup']); const verticalCol = findCol(headers, ['verticaljump', 'vertical'])
+      const assaultTimeCol = findCol(headers, ['km05time', '05kmasslttime', '05kmassaulttime', 'asslttime', 'assaulttime']); const assaultWattCol = findCol(headers, ['km05watts', 'km05watt', '05kmassltwatt', '05kmassaultwatt', 'assltwatt', 'assaultwatt', 'watt'])
+      const heightFtCol = findCol(headers, ['heightft']); const heightInCol = findCol(headers, ['heightin']); const wingspanFtCol = findCol(headers, ['wingspanft']); const wingspanInCol = findCol(headers, ['wingspanin']); const heightCol = heightFtCol >= 0 ? -1 : findCol(headers, ['height']); const wingspanCol = wingspanFtCol >= 0 ? -1 : findCol(headers, ['wingspan'])
       for (let r = headerRowIndex + 1; r < grid.length; r++) {
-        const row = grid[r] || []
-        const first = displayName(row[firstCol] || '')
-        const last = displayName(row[lastCol] || '')
+        const row = grid[r] || []; const first = displayName(row[firstCol] || ''); const last = displayName(row[lastCol] || '')
         if (!first || !last || first === 'FIRST' || last === 'LAST') continue
-        const rowTeam = teamCol >= 0 ? clean(row[teamCol]) : selectedTeam
-        if (rowTeam && rowTeam !== selectedTeam) continue
-        rowsWithNames++
-        const athlete = athleteMap.get(personKey(first, last))
+        const rowTeam = teamCol >= 0 ? clean(row[teamCol]) : selectedTeam; if (rowTeam && rowTeam !== selectedTeam) continue
+        rowsWithNames++; const athlete = athleteMap.get(personKey(first, last))
         if (!athlete) { missing.push({ first_name: first, last_name: last, team: selectedTeam }); continue }
         const out = emptyCombineRow(athlete, selectedTeam, season)
         const broad = broadCol >= 0 ? parseFtIn(row[broadCol]) : { ft: broadFtCol >= 0 ? intNum(row[broadFtCol]) : null, inch: broadInCol >= 0 ? num(row[broadInCol]) : null }
         const height = heightCol >= 0 ? parseFtIn(row[heightCol]) : { ft: heightFtCol >= 0 ? intNum(row[heightFtCol]) : null, inch: heightInCol >= 0 ? num(row[heightInCol]) : null }
         const wingspan = wingspanCol >= 0 ? parseFtIn(row[wingspanCol]) : { ft: wingspanFtCol >= 0 ? intNum(row[wingspanFtCol]) : null, inch: wingspanInCol >= 0 ? num(row[wingspanInCol]) : null }
-        out.sprint = sprintCol >= 0 ? num(row[sprintCol]) : null
-        out.broad_jump_ft = broad.ft; out.broad_jump_in = broad.inch
-        out.vertical = verticalCol >= 0 ? num(row[verticalCol]) : null
-        out.height_ft = height.ft; out.height_in = height.inch
-        out.wingspan_ft = wingspan.ft; out.wingspan_in = wingspan.inch
-        const chin = chinHoldCol >= 0 ? num(row[chinHoldCol]) : (chinupsCol >= 0 ? num(row[chinupsCol]) : null)
-        if (isOlder) out.chinups = chin; else out.chinup_hold = chin
-        out.mile02_time = assaultTimeCol >= 0 ? clean(row[assaultTimeCol] || '') || null : null
-        out.mile02_watts = assaultWattCol >= 0 ? intNum(row[assaultWattCol]) : null
-        rowsWithResults += hasAnyResult(out) ? 1 : 0
-        resultMap.set(athlete.id, out)
+        out.sprint = sprintCol >= 0 ? num(row[sprintCol]) : null; out.broad_jump_ft = broad.ft; out.broad_jump_in = broad.inch; out.vertical = verticalCol >= 0 ? num(row[verticalCol]) : null; out.height_ft = height.ft; out.height_in = height.inch; out.wingspan_ft = wingspan.ft; out.wingspan_in = wingspan.inch
+        const chin = chinHoldCol >= 0 ? num(row[chinHoldCol]) : (chinupsCol >= 0 ? num(row[chinupsCol]) : null); if (isOlder) out.chinups = chin; else out.chinup_hold = chin
+        out.mile02_time = assaultTimeCol >= 0 ? clean(row[assaultTimeCol] || '') || null : null; out.mile02_watts = assaultWattCol >= 0 ? intNum(row[assaultWattCol]) : null
+        rowsWithResults += hasAnyResult(out) ? 1 : 0; resultMap.set(athlete.id, out)
       }
     }
 
@@ -202,41 +138,24 @@ export async function POST(request: Request) {
 
     if (matched.length > 0) {
       const athleteIds = matched.map(row => row.athlete_id)
-      const { data: existingResults, error: existingError } = await db
-        .from('combine_results')
-        .select('athlete_id, athlete_name, team, season')
-        .eq('season', season)
-        .in('athlete_id', athleteIds)
-
+      const { data: existingResults, error: existingError } = await db.from('combine_results').select('id, athlete_id, athlete_name, team, season, roster_phase').eq('season', season).eq('roster_phase', rosterPhase).in('athlete_id', athleteIds)
       if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 })
+      if ((existingResults?.length || 0) > 0 && !allowOverwriteExisting) return NextResponse.json({ error: `Import blocked: ${existingResults!.length} ${rosterPhase} combine result record(s) already exist. This safety check prevents accidental overwrites.`, code: 'EXISTING_RESULTS_BLOCKED', roster_phase: rosterPhase, existing: existingResults, hint: 'Use the correct roster phase. Existing annual combine results will not be overwritten by the import tool.' }, { status: 409 })
 
-      if ((existingResults?.length || 0) > 0 && !allowOverwriteExisting) {
-        return NextResponse.json({
-          error: `Import blocked: ${existingResults!.length} ${rosterPhase} combine result record(s) already exist. This safety check prevents accidental overwrites.`,
-          code: 'EXISTING_RESULTS_BLOCKED',
-          roster_phase: rosterPhase,
-          existing: existingResults,
-          hint: 'Use the correct roster phase. Existing annual combine results will not be overwritten by the import tool.',
-        }, { status: 409 })
+      const existingByAthlete = new Map((existingResults || []).map((r: any) => [r.athlete_id, r]))
+      for (const row of matched) {
+        const payload = { ...row, roster_phase: rosterPhase }
+        const existing: any = existingByAthlete.get(row.athlete_id)
+        if (existing) {
+          const { error } = await db.from('combine_results').update(payload).eq('id', existing.id)
+          if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        } else {
+          const { error } = await db.from('combine_results').insert(payload)
+          if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        }
       }
 
-      const { error } = await db.from('combine_results').upsert(matched, { onConflict: 'athlete_id,season' })
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-      const auditRows = matched.map(row => ({
-        action: 'COMBINE_ENTRY',
-        table_name: 'combine_results',
-        user_email: 'combine-import',
-        record_id: row.athlete_id,
-        details: {
-          athlete: row.athlete_name,
-          team: row.team,
-          season: row.season,
-          roster_phase: rosterPhase,
-          source: 'combine_import',
-          values: row,
-        },
-      }))
+      const auditRows = matched.map(row => ({ action: 'COMBINE_ENTRY', table_name: 'combine_results', user_email: 'combine-import', record_id: row.athlete_id, details: { athlete: row.athlete_name, team: row.team, season: row.season, roster_phase: rosterPhase, source: 'combine_import', values: { ...row, roster_phase: rosterPhase } } }))
       const { error: auditError } = await db.from('audit_log').insert(auditRows)
       if (auditError) console.error('Combine import audit failed:', auditError.message)
     }
