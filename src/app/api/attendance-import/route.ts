@@ -14,7 +14,16 @@ export async function POST(request:Request){
  const body=await request.json(), rows=Array.isArray(body.rows)?body.rows:[]
  if(!body.season||!rows.length)return NextResponse.json({error:'Season and matched attendance rows are required.'},{status:400})
  const db=admin()
- const payload=rows.filter((r:any)=>r.athlete_id&&(r.team||body.team)).map((r:any)=>({athlete_id:r.athlete_id,athlete_name:r.athlete_name,team:r.team||body.team,season:body.season,raw_attendance:r.raw_attendance,adjusted_attendance:r.adjusted_attendance,source_file:body.source_file||null}))
+ // Keep this payload compatible with the existing attendance_imports table.
+ // Report-card +7 is derived by the UI; do not require a new adjusted_attendance DB column.
+ const payload=rows.filter((r:any)=>r.athlete_id&&(r.team||body.team)).map((r:any)=>({
+   athlete_id:r.athlete_id,
+   athlete_name:r.athlete_name,
+   team:r.team||body.team,
+   season:body.season,
+   raw_attendance:r.raw_attendance,
+   source_file:body.source_file||null
+ }))
  if(!payload.length)return NextResponse.json({error:'No matched athletes to save.'},{status:400})
  const {data,error}=await db.from('attendance_imports').upsert(payload,{onConflict:'athlete_id,season'}).select()
  if(error)return NextResponse.json({error:error.message},{status:500})
