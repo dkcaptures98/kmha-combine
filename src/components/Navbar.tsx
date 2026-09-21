@@ -21,8 +21,8 @@ export default function Navbar() {
             ? 'superadmin'
             : p.role
       setRole(normalizedRole)
-      const allowedDataEntryRoutes = ['/entry', '/results', '/schedule', '/combine', '/combine-import', '/roster-import']
-      if (normalizedRole === 'data_entry' && !allowedDataEntryRoutes.includes(pathname)) router.replace('/entry')
+      const allowedDataEntryRoutes = ['/combine', '/combine-import', '/roster-import', '/schedule']
+      if (normalizedRole === 'data_entry' && !allowedDataEntryRoutes.includes(pathname)) router.replace('/combine')
     })
   }, [pathname])
 
@@ -31,15 +31,13 @@ export default function Navbar() {
     window.location.href = '/auth/login'
   }
 
+  // Emergency annual-combine mode: weekly Results, Data Entry, Search and Compare
+  // are intentionally removed from navigation until the annual combine is stable.
   const linksByRole: Record<string, { href: string; label: string }[]> = {
     superadmin: [
       { href: '/dashboard', label: 'Dashboard' },
-      { href: '/results', label: 'Results' },
-      { href: '/entry', label: 'Data Entry' },
       { href: '/combine', label: 'Annual Combine' },
       { href: '/combine-import', label: 'Combine Import' },
-      { href: '/search', label: 'Search' },
-      { href: '/compare', label: 'Compare' },
       { href: '/schedule', label: 'Schedule' },
       { href: '/athlete-reports', label: 'Report Cards' },
       { href: '/athletes', label: 'Athletes' },
@@ -50,12 +48,8 @@ export default function Navbar() {
     ],
     admin: [
       { href: '/dashboard', label: 'Dashboard' },
-      { href: '/results', label: 'Results' },
-      { href: '/entry', label: 'Data Entry' },
       { href: '/combine', label: 'Annual Combine' },
       { href: '/combine-import', label: 'Combine Import' },
-      { href: '/search', label: 'Search' },
-      { href: '/compare', label: 'Compare' },
       { href: '/schedule', label: 'Schedule' },
       { href: '/athlete-reports', label: 'Report Cards' },
       { href: '/athletes', label: 'Athletes' },
@@ -64,24 +58,18 @@ export default function Navbar() {
       { href: '/admin', label: 'Admin' },
     ],
     data_entry: [
-      { href: '/entry', label: 'Data Entry' },
-      { href: '/results', label: 'Results' },
       { href: '/combine', label: 'Annual Combine' },
       { href: '/combine-import', label: 'Combine Import' },
       { href: '/roster-import', label: 'Roster Import' },
       { href: '/schedule', label: 'Schedule' },
     ],
     coach: [
-      { href: '/entry', label: 'Data Entry' },
       { href: '/combine', label: 'Annual Combine' },
       { href: '/schedule', label: 'Schedule' },
       { href: '/dashboard', label: 'Dashboard' },
-      { href: '/results', label: 'Results' },
-      { href: '/search', label: 'Search' },
     ],
     entry_only: [
-      { href: '/entry', label: 'Data Entry' },
-      { href: '/results', label: 'Results' },
+      { href: '/combine', label: 'Annual Combine' },
       { href: '/schedule', label: 'Schedule' },
     ],
   }
@@ -110,7 +98,7 @@ export default function Navbar() {
   return (
     <nav style={{ background: 'rgba(2,11,24,0.95)', borderBottom: '1px solid rgba(59,130,246,0.15)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 40 }}>
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px', gap: '8px' }}>
-        <Link href={role === 'data_entry' || role === 'entry_only' ? '/entry' : '/dashboard'} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', flexShrink: 0 }}>
+        <Link href={role === 'data_entry' || role === 'entry_only' ? '/combine' : '/dashboard'} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', flexShrink: 0 }}>
           <div style={{ width: '28px', height: '28px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
             <img src="/logo.jpg" alt="KMHA" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
