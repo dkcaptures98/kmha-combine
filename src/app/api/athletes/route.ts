@@ -33,7 +33,7 @@ function cleanBody(body: any) {
 }
 
 export async function GET(request: Request) {
-  const supabase = await createClient()
+  await createClient() // preserve auth/session initialization used elsewhere in the app
   const admin = getAdminClient()
   const { searchParams } = new URL(request.url)
   const team = searchParams.get('team')
@@ -98,7 +98,10 @@ export async function GET(request: Request) {
     return NextResponse.json(visibleRows)
   }
 
-  let query = supabase.from('athletes').select('*').order('last_name')
+  // IMPORTANT: use the service-role client here too. The attendance importer requests
+  // the full season roster without a team, and RLS on the session client was returning
+  // only a tiny subset, causing almost every TeamBuildr athlete to appear unmatched.
+  let query = admin.from('athletes').select('*').order('last_name')
   if (team) query = query.eq('team', team)
   if (season) query = query.eq('season', season)
   if (rosterPhase) query = query.eq('roster_phase', rosterPhase)
@@ -119,77 +122,34 @@ export async function POST(request: Request) {
   }
 
   const { data: duplicate, error: duplicateError } = await admin
-    .from('athletes')
-    .select('id')
-    .eq('first_name', row.first_name)
-    .eq('last_name', row.last_name)
-    .eq('team', row.team)
-    .eq('season', row.season)
-    .eq('roster_phase', row.roster_phase)
-    .limit(1)
-
+    .from('athletes').select('id').eq('first_name', row.first_name).eq('last_name', row.last_name).eq('team', row.team).eq('season', row.season).eq('roster_phase', row.roster_phase).limit(1)
   if (duplicateError) return NextResponse.json({ error: duplicateError.message }, { status: 500 })
   if ((duplicate || []).length > 0) return NextResponse.json({ error: 'That athlete already exists on this team and roster phase.' }, { status: 409 })
-
   const { data, error } = await admin.from('athletes').insert({ id: body.id, ...row }).select()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
 export async function PATCH(request: Request) {
-  const admin = getAdminClient()
-  const body = await request.json()
-  const id = String(body.id || '').trim()
-  const row = cleanBody(body)
-
-  if (!id || !row.first_name || !row.last_name || !row.team || !row.season || !['offseason','inseason'].includes(row.roster_phase)) {
-    return NextResponse.json({ error: 'Athlete id, first name, last name, team, season, and roster phase are required.' }, { status: 400 })
-  }
-
-  const { data: duplicate, error: duplicateError } = await admin
-    .from('athletes')
-    .select('id')
-    .eq('first_name', row.first_name)
-    .eq('last_name', row.last_name)
-    .eq('team', row.team)
-    .eq('season', row.season)
-    .eq('roster_phase', row.roster_phase)
-    .neq('id', id)
-    .limit(1)
-
+  const admin = getAdminClient(), body = await request.json(), id = String(body.id || '').trim(), row = cleanBody(body)
+  if (!id || !row.first_name || !row.last_name || !row.team || !row.season || !['offseason','inseason'].includes(row.roster_phase)) return NextResponse.json({ error: 'Athlete id, first name, last name, team, season, and roster phase are required.' }, { status: 400 })
+  const { data: duplicate, error: duplicateError } = await admin.from('athletes').select('id').eq('first_name', row.first_name).eq('last_name', row.last_name).eq('team', row.team).eq('season', row.season).eq('roster_phase', row.roster_phase).neq('id', id).limit(1)
   if (duplicateError) return NextResponse.json({ error: duplicateError.message }, { status: 500 })
   if ((duplicate || []).length > 0) return NextResponse.json({ error: 'Another athlete record already has this same name, team, season, and roster phase.' }, { status: 409 })
-
   const { data, error } = await admin.from('athletes').update(row).eq('id', id).select()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data?.length) return NextResponse.json({ error: 'Athlete not found.' }, { status: 404 })
-
   const athleteName = `${row.first_name} ${row.last_name}`
-  await Promise.all([
-    admin.from('combine_results').update({ athlete_name: athleteName, team: row.team }).eq('athlete_id', id),
-    admin.from('combine_entries').update({ athlete_name: athleteName, team: row.team }).eq('athlete_id', id),
-  ])
-
+  await Promise.all([admin.from('combine_results').update({ athlete_name: athleteName, team: row.team }).eq('athlete_id', id),admin.from('combine_entries').update({ athlete_name: athleteName, team: row.team }).eq('athlete_id', id)])
   return NextResponse.json(data[0])
 }
 
 export async function DELETE(request: Request) {
-  const admin = getAdminClient()
-  const { searchParams } = new URL(request.url)
-  const id = String(searchParams.get('id') || '').trim()
+  const admin = getAdminClient(), { searchParams } = new URL(request.url), id = String(searchParams.get('id') || '').trim()
   if (!id) return NextResponse.json({ error: 'Athlete id is required.' }, { status: 400 })
-
-  const [combineResults, combineEntries, attendance] = await Promise.all([
-    admin.from('combine_results').select('athlete_id', { count: 'exact', head: true }).eq('athlete_id', id),
-    admin.from('combine_entries').select('athlete_id', { count: 'exact', head: true }).eq('athlete_id', id),
-    admin.from('attendance').select('athlete_id', { count: 'exact', head: true }).eq('athlete_id', id),
-  ])
-
+  const [combineResults, combineEntries, attendance] = await Promise.all([admin.from('combine_results').select('athlete_id', { count: 'exact', head: true }).eq('athlete_id', id),admin.from('combine_entries').select('athlete_id', { count: 'exact', head: true }).eq('athlete_id', id),admin.from('attendance').select('athlete_id', { count: 'exact', head: true }).eq('athlete_id', id)])
   const linked = (combineResults.count || 0) + (combineEntries.count || 0) + (attendance.count || 0)
-  if (linked > 0) {
-    return NextResponse.json({ error: `This athlete has ${linked} linked record(s). Set the athlete inactive instead of deleting so historical data is preserved.` }, { status: 409 })
-  }
-
+  if (linked > 0) return NextResponse.json({ error: `This athlete has ${linked} linked record(s). Set the athlete inactive instead of deleting so historical data is preserved.` }, { status: 409 })
   const { error } = await admin.from('athletes').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ deleted: true, id })
