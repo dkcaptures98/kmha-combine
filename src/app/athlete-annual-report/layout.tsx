@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 type Attendance = {
@@ -13,7 +13,7 @@ type Attendance = {
   last_session?: string
 }
 
-export default function AnnualReportLayout({ children }: { children: ReactNode }) {
+function AnnualReportLayoutInner({ children }: { children: ReactNode }) {
   const params = useSearchParams()
   const athleteId = params.get('id') || ''
   const season = params.get('season') || '2026-2027'
@@ -44,4 +44,12 @@ export default function AnnualReportLayout({ children }: { children: ReactNode }
       </div>
     )}
   </>
+}
+
+export default function AnnualReportLayout({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={children}>
+      <AnnualReportLayoutInner>{children}</AnnualReportLayoutInner>
+    </Suspense>
+  )
 }
