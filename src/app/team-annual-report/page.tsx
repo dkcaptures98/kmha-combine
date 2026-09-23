@@ -12,7 +12,6 @@ type DisplayAthlete = { id: string; first_name: string; last_name: string; row: 
 
 const U10_12 = ['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA']
 const SEASONS = ['2025-2026','2026-2027','2027-2028','2028-2029']
-const PHASES = ['offseason','inseason']
 
 function isYoungTeam(team: string) { return U10_12.includes(team) }
 function getTests(team: string): TestDef[] {
@@ -39,13 +38,17 @@ function hasAnyTest(row:CombineResult|undefined,tests:TestDef[]){return !!row&&t
 function avg(nums:number[]){return nums.length?nums.reduce((s,v)=>s+v,0)/nums.length:null}
 function fmtInches(v:number){const total=Math.round(v);const ft=Math.floor(total/12);return `${ft}'${total-ft*12}\"`}
 function fmt(key:string,v:number|null){if(v==null)return'N/A';if(['height','wingspan','broad'].includes(key))return fmtInches(v);if(key==='sprint')return`${v.toFixed(2)}s`;if(key==='time')return`${Math.round(v)}s`;if(key==='vertical')return`${Math.round(v)} cm`;if(key==='watts')return`${Math.round(v)} W`;return String(Math.round(v))}
-function periodIndex(season?:string,phase?:string|null){const s=SEASONS.indexOf(season||'');const p=PHASES.indexOf(phase||'');return(s<0?999:s*2)+(p<0?0:p)}
 function phaseLabel(phase?:string|null){return phase==='offseason'?'Offseason':phase==='inseason'?'In-Season':(phase||'—')}
-function improvement(current:number|null,previous:number|null,lower:boolean){if(current==null||previous==null||previous===0)return null;const raw=((current-previous)/previous)*100;return lower?-raw:raw}
+function improvement(current:number,previous:number,lower:boolean){const raw=((current-previous)/previous)*100;return lower?-raw:raw}
 function fmtChange(v:number|null){if(v==null)return'N/A';if(Math.abs(v)<0.05)return'0.0%';return`${v>0?'+':''}${v.toFixed(1)}%`}
 function changeColour(v:number|null){if(v==null)return'#64748b';if(v>0)return'#059669';if(v<0)return'#dc2626';return'#64748b'}
 function splitName(name?:string){const parts=(name||'').trim().split(/\s+/).filter(Boolean);if(!parts.length)return{first_name:'Unknown',last_name:'Athlete'};if(parts.length===1)return{first_name:parts[0],last_name:''};return{first_name:parts.slice(0,-1).join(' '),last_name:parts[parts.length-1]}}
 function athleteKey(row:CombineResult){return(row.athlete_name||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'')}
+function previousPeriodFor(season:string,phase:string){
+  if(phase==='inseason') return {season,phase:'offseason'}
+  const index=SEASONS.indexOf(season)
+  return index>0?{season:SEASONS[index-1],phase:'inseason'}:null
+}
 
 function TeamAnnualReportContent(){
   const params=useSearchParams();const team=params.get('team')||'';const season=params.get('season')||'2026-2027';const phase=params.get('roster_phase')||'offseason'
@@ -53,12 +56,34 @@ function TeamAnnualReportContent(){
   const generated=new Date().toLocaleDateString('en-CA',{month:'long',day:'numeric',year:'numeric'})
   useEffect(()=>{Promise.all([fetch('/api/combine').then(r=>r.json()).catch(()=>[]),fetch('/api/athletes').then(r=>r.json()).catch(()=>[])]).then(([c,a])=>{setRows(Array.isArray(c)?c:[]);setAthletes(Array.isArray(a)?a:[]);setLoading(false)}).catch(()=>setLoading(false))},[])
   const tests=getTests(team)
-  const teamRows=rows.filter(r=>r.team===team&&r.season===season&&(!r.roster_phase||r.roster_phase===phase))
+  const teamRows=rows.filter(r=>r.team===team&&r.season===season&&r.roster_phase===phase)
   const teamAthletes:DisplayAthlete[]=teamRows.map((r,i)=>{const matched=athletes.find(a=>a.id===r.athlete_id);const parsed=splitName(r.athlete_name);return{id:r.athlete_id||`combine-${i}`,first_name:matched?.first_name||parsed.first_name,last_name:matched?.last_name||parsed.last_name,row:r}}).sort((a,b)=>a.last_name.localeCompare(b.last_name)||a.first_name.localeCompare(b.first_name))
   const rowByAthlete=new Map(teamAthletes.map(a=>[a.id,a.row]))
-  const previousPeriod=rows.filter(r=>r.team===team&&periodIndex(r.season,r.roster_phase)<periodIndex(season,phase)).sort((a,b)=>periodIndex(b.season,b.roster_phase)-periodIndex(a.season,a.roster_phase))[0]
-  const previousRows=previousPeriod?rows.filter(r=>r.team===team&&r.season===previousPeriod.season&&(!r.roster_phase||r.roster_phase===previousPeriod.roster_phase)):[]
-  const summaries=useMemo(()=>{const previousByAthlete=new Map(previousRows.map(r=>[athleteKey(r),r]));return tests.map(t=>{const currentVals=teamRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const currentAvg=avg(currentVals);if(t.key==='height'||t.key==='wingspan')return{...t,currentAvg,change:null,pairedCount:0};const pairs=teamRows.map(currentRow=>{const previousRow=previousByAthlete.get(athleteKey(currentRow));return{currentValue:value(currentRow,t.key),previousValue:value(previousRow,t.key)}}).filter((p):p is {currentValue:number;previousValue:number}=>typeof p.currentValue==='number'&&Number.isFinite(p.currentValue)&&typeof p.previousValue==='number'&&Number.isFinite(p.previousValue)&&p.previousValue!==0);return{...t,currentAvg,change:improvement(avg(pairs.map(p=>p.currentValue)),avg(pairs.map(p=>p.previousValue)),t.lower),pairedCount:pairs.length}})},[tests,teamRows,previousRows])
+  const previousTarget=previousPeriodFor(season,phase)
+  const previousRows=previousTarget?rows.filter(r=>r.team===team&&r.season===previousTarget.season&&r.roster_phase===previousTarget.phase):[]
+  const previousPeriod=previousRows[0]
+
+  const summaries=useMemo(()=>{
+    const previousByAthlete=new Map(previousRows.map(r=>[athleteKey(r),r]))
+    return tests.map(t=>{
+      const currentVals=teamRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v))
+      const currentAvg=avg(currentVals)
+      if(t.key==='height'||t.key==='wingspan')return{...t,currentAvg,change:null,pairedCount:0}
+
+      // Calculate each matched athlete's % change first, then average those percentages.
+      // This compares the exact same athletes from offseason -> in-season and prevents
+      // roster turnover or different sample sizes from distorting the team change value.
+      const athleteChanges=teamRows.map(currentRow=>{
+        const previousRow=previousByAthlete.get(athleteKey(currentRow))
+        const currentValue=value(currentRow,t.key)
+        const previousValue=value(previousRow,t.key)
+        if(typeof currentValue!=='number'||!Number.isFinite(currentValue)||typeof previousValue!=='number'||!Number.isFinite(previousValue)||previousValue===0)return null
+        return improvement(currentValue,previousValue,t.lower)
+      }).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v))
+
+      return{...t,currentAvg,change:avg(athleteChanges),pairedCount:athleteChanges.length}
+    })
+  },[tests,teamRows,previousRows])
   if(!team)return<div style={{padding:48,fontFamily:'Arial'}}>No team selected</div>
   if(loading)return<div style={{padding:48,fontFamily:'Arial'}}>Generating team report...</div>
   const headerCell:React.CSSProperties={padding:'10px 9px',color:'white',textAlign:'center',fontSize:9,textTransform:'uppercase',letterSpacing:'.04em',lineHeight:1.25}
@@ -68,7 +93,7 @@ function TeamAnnualReportContent(){
     <div className="no-print" style={{position:'fixed',top:16,right:16,zIndex:100,display:'flex',gap:8}}><button onClick={()=>window.print()} style={{padding:'10px 20px',background:'#1d4ed8',color:'white',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer'}}>🖨 Print / Save PDF</button><button onClick={()=>window.close()} style={{padding:'10px 16px',background:'#f1f5f9',color:'#475569',border:'none',borderRadius:8,cursor:'pointer'}}>✕ Close</button></div>
     <div className="report-wrapper" style={{maxWidth:1040,margin:'0 auto',padding:'34px 40px 48px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:22,paddingBottom:18,borderBottom:'3px solid #0f172a'}}><div><p style={{margin:'0 0 6px',fontSize:11,fontWeight:800,letterSpacing:'.12em',textTransform:'uppercase',color:'#64748b'}}>Coach Report</p><h1 style={{margin:'0 0 10px',fontSize:30,letterSpacing:'.02em'}}>TEAM ANNUAL COMBINE REPORT</h1><div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}><span style={{background:'#0f172a',color:'white',borderRadius:5,padding:'4px 12px',fontSize:12,fontWeight:800}}>{team}</span><span style={{fontSize:12,color:'#64748b'}}>{season} · {phaseLabel(phase)}</span></div></div><div style={{textAlign:'right',fontSize:11,color:'#64748b',lineHeight:1.8}}><p style={{margin:0,fontWeight:800,color:'#0f172a'}}>KMHA Combine Tracker</p><p style={{margin:0}}>Generated: {generated}</p><p style={{margin:0}}>{teamAthletes.length} athletes listed</p></div></div>
-      <div className="section" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:28}}><div style={{border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px',background:'#f8fafc'}}><div style={{fontSize:9,color:'#64748b',fontWeight:800,textTransform:'uppercase',letterSpacing:'.08em'}}>Athletes Listed</div><div style={{fontSize:27,fontWeight:900,marginTop:5}}>{teamAthletes.length}</div></div><div style={{border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px',background:'#f8fafc'}}><div style={{fontSize:9,color:'#64748b',fontWeight:800,textTransform:'uppercase',letterSpacing:'.08em'}}>Tested This Period</div><div style={{fontSize:27,fontWeight:900,marginTop:5}}>{teamRows.filter(r=>hasAnyTest(r,tests)).length}</div></div><div style={{border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px',background:'#f8fafc'}}><div style={{fontSize:9,color:'#64748b',fontWeight:800,textTransform:'uppercase',letterSpacing:'.08em'}}>Previous Period</div><div style={{fontSize:17,fontWeight:900,marginTop:7}}>{previousPeriod?.season||'N/A'}</div><div style={{fontSize:10,color:'#64748b',marginTop:2}}>{previousPeriod?phaseLabel(previousPeriod.roster_phase):'No prior combine data'}</div></div></div>
+      <div className="section" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:28}}><div style={{border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px',background:'#f8fafc'}}><div style={{fontSize:9,color:'#64748b',fontWeight:800,textTransform:'uppercase',letterSpacing:'.08em'}}>Athletes Listed</div><div style={{fontSize:27,fontWeight:900,marginTop:5}}>{teamAthletes.length}</div></div><div style={{border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px',background:'#f8fafc'}}><div style={{fontSize:9,color:'#64748b',fontWeight:800,textTransform:'uppercase',letterSpacing:'.08em'}}>Tested This Period</div><div style={{fontSize:27,fontWeight:900,marginTop:5}}>{teamRows.filter(r=>hasAnyTest(r,tests)).length}</div></div><div style={{border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px',background:'#f8fafc'}}><div style={{fontSize:9,color:'#64748b',fontWeight:800,textTransform:'uppercase',letterSpacing:'.08em'}}>Previous Period</div><div style={{fontSize:17,fontWeight:900,marginTop:7}}>{previousTarget?.season||'N/A'}</div><div style={{fontSize:10,color:'#64748b',marginTop:2}}>{previousPeriod&&previousTarget?phaseLabel(previousTarget.phase):'No prior combine data'}</div></div></div>
       <div className="section" style={{marginBottom:30}}><h2 style={{fontSize:13,letterSpacing:'.08em',textTransform:'uppercase',borderBottom:'2px solid #e2e8f0',paddingBottom:9,margin:'0 0 14px'}}>Athlete Results</h2><table className="athlete-table" style={{width:'100%',borderCollapse:'collapse',fontSize:10,tableLayout:'fixed'}}><thead><tr style={{background:'#0f172a'}}>{['Athlete','Status',...tests.map(t=>t.label)].map((h,i)=><th key={h} style={{...headerCell,textAlign:i===0?'left':'center',width:i===0?'15%':undefined}}>{h}</th>)}</tr></thead><tbody>{teamAthletes.map((a,i)=>{const r=rowByAthlete.get(a.id);const tested=hasAnyTest(r,tests);return<tr key={a.id} style={{background:i%2?'#f8fafc':'white',borderBottom:'1px solid #e8edf3'}}><td style={{...bodyCell,textAlign:'left',fontWeight:800}}>{a.first_name} {a.last_name}</td><td style={{...bodyCell,color:tested?'#059669':'#dc2626',fontWeight:800}}>{tested?'Tested':'Did Not Test'}</td>{tests.map(t=><td key={t.key} style={bodyCell}>{fmt(t.key,value(r,t.key))}</td>)}</tr>})}{teamAthletes.length===0&&<tr><td colSpan={tests.length+2} style={{padding:20,textAlign:'center',color:'#64748b'}}>No athletes found for this team and selected combine period.</td></tr>}</tbody></table></div>
       <div className="section" style={{marginTop:30,marginBottom:24}}><h2 style={{fontSize:13,letterSpacing:'.08em',textTransform:'uppercase',borderBottom:'2px solid #e2e8f0',paddingBottom:9,margin:'0 0 14px'}}>Team Averages & Improvement</h2><table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}><thead><tr style={{background:'#0f172a'}}>{['Metric','Current Avg','Change'].map((h,i)=><th key={h} style={{padding:'10px 14px',color:'white',textAlign:i===0?'left':'center',fontSize:10,textTransform:'uppercase',letterSpacing:'.06em'}}>{h}</th>)}</tr></thead><tbody>{summaries.map((s,i)=>{const noChange=s.key==='height'||s.key==='wingspan';return<tr key={s.key} style={{background:i%2?'#f8fafc':'white',borderBottom:'1px solid #e8edf3'}}><td style={{padding:'10px 14px',fontWeight:800}}>{s.label}</td><td style={{padding:'10px 14px',textAlign:'center',fontWeight:800}}>{fmt(s.key,s.currentAvg)}</td><td style={{padding:'10px 14px',textAlign:'center',fontWeight:800,color:noChange?'#94a3b8':changeColour(s.change)}}>{noChange?'—':fmtChange(s.change)}</td></tr>})}</tbody></table></div>
       <div style={{borderTop:'1px solid #e2e8f0',paddingTop:14,marginTop:18,display:'flex',justifyContent:'space-between',fontSize:10,color:'#94a3b8'}}><span>Kitchener Minor Hockey Association · Coach Team Annual Combine Report</span><span>{generated}</span></div>
