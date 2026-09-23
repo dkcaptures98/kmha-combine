@@ -31,6 +31,7 @@ function fmtChange(v:number|null){if(v==null)return'N/A';if(Math.abs(v)<0.05)ret
 function changeColour(v:number|null,lower:boolean){if(v==null||Math.abs(v)<0.05)return'#64748b';const improved=lower?v<0:v>0;return improved?'#059669':'#dc2626'}
 function splitName(name?:string){const parts=(name||'').trim().split(/\s+/).filter(Boolean);if(!parts.length)return{first_name:'Unknown',last_name:'Athlete'};if(parts.length===1)return{first_name:parts[0],last_name:''};return{first_name:parts.slice(0,-1).join(' '),last_name:parts[parts.length-1]}}
 function previousPeriodFor(season:string,phase:string){if(phase==='inseason')return{season,phase:'offseason'};const index=SEASONS.indexOf(season);return index>0?{season:SEASONS[index-1],phase:'inseason'}:null}
+function athleteKey(row:CombineResult){const id=(row.athlete_id||'').trim();if(id)return id;return(row.athlete_name||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'')}
 
 function TeamAnnualReportContent(){
  const params=useSearchParams();const team=params.get('team')||'';const season=params.get('season')||'2026-2027';const phase=params.get('roster_phase')||'offseason'
@@ -44,7 +45,24 @@ function TeamAnnualReportContent(){
  const previousTarget=previousPeriodFor(season,phase)
  const previousRows=previousTarget?rows.filter(r=>r.team===team&&r.season===previousTarget.season&&r.roster_phase===previousTarget.phase):[]
  const previousPeriod=previousRows[0]
- const summaries=useMemo(()=>tests.map(t=>{const currentVals=teamRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const previousVals=previousRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const rawCurrentAvg=avg(currentVals);const rawPreviousAvg=avg(previousVals);return{...t,currentAvg:displayedAverage(t.key,rawCurrentAvg),change:(t.key==='height'||t.key==='wingspan')?null:percentChange(rawCurrentAvg,rawPreviousAvg)}}),[tests,teamRows,previousRows])
+ const summaries=useMemo(()=>tests.map(t=>{
+   const currentVals=teamRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v))
+   const rawCurrentAvg=avg(currentVals)
+   if(t.key==='height'||t.key==='wingspan')return{...t,currentAvg:displayedAverage(t.key,rawCurrentAvg),change:null}
+   const previousByAthlete=new Map<string,CombineResult>()
+   previousRows.forEach(r=>{const k=athleteKey(r);if(k)previousByAthlete.set(k,r)})
+   const matchedPairs:{current:number;previous:number}[]=[]
+   teamRows.forEach(currentRow=>{
+     const previousRow=previousByAthlete.get(athleteKey(currentRow))
+     if(!previousRow)return
+     const currentValue=value(currentRow,t.key)
+     const previousValue=value(previousRow,t.key)
+     if(typeof currentValue==='number'&&Number.isFinite(currentValue)&&typeof previousValue==='number'&&Number.isFinite(previousValue))matchedPairs.push({current:currentValue,previous:previousValue})
+   })
+   const matchedCurrentAvg=avg(matchedPairs.map(p=>p.current))
+   const matchedPreviousAvg=avg(matchedPairs.map(p=>p.previous))
+   return{...t,currentAvg:displayedAverage(t.key,rawCurrentAvg),change:percentChange(matchedCurrentAvg,matchedPreviousAvg)}
+ }),[tests,teamRows,previousRows])
  if(!team)return<div style={{padding:48,fontFamily:'Arial'}}>No team selected</div>
  if(loading)return<div style={{padding:48,fontFamily:'Arial'}}>Generating team report...</div>
  const headerCell:React.CSSProperties={padding:'10px 9px',color:'white',textAlign:'center',fontSize:9,textTransform:'uppercase',letterSpacing:'.04em',lineHeight:1.25};const bodyCell:React.CSSProperties={padding:'9px 9px',textAlign:'center',color:'#334155',lineHeight:1.3}
