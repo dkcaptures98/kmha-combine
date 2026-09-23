@@ -22,14 +22,20 @@ function AnnualReportLayoutInner({ children }: { children: ReactNode }) {
   }, [athleteId, season, phase])
 
   useEffect(() => {
-    if (!attendance || !cardRef.current) return
+    if (!attendance) return
+    let stopped = false
     const place = () => {
+      if (stopped || !cardRef.current) return false
       const heading = Array.from(document.querySelectorAll('h2')).find(h => h.textContent?.includes('Annual Combine Score Summary'))
-      if (heading?.parentElement && cardRef.current) heading.parentElement.insertBefore(cardRef.current, heading)
+      if (!heading?.parentElement) return false
+      if (cardRef.current.nextElementSibling !== heading) heading.parentElement.insertBefore(cardRef.current, heading)
+      return true
     }
     place()
-    const timer = window.setTimeout(place, 100)
-    return () => window.clearTimeout(timer)
+    const observer = new MutationObserver(() => place())
+    observer.observe(document.body, { childList: true, subtree: true })
+    const timers = [50,150,300,600,1000].map(ms => window.setTimeout(place, ms))
+    return () => { stopped = true; observer.disconnect(); timers.forEach(window.clearTimeout) }
   }, [attendance, athleteId, season, phase])
 
   return <>
@@ -37,13 +43,13 @@ function AnnualReportLayoutInner({ children }: { children: ReactNode }) {
     {phase === 'inseason' && attendance && (
       <div ref={cardRef} className="attendance-report-card">
         <style>{`
-          .attendance-report-card{box-sizing:border-box;background:#f8fafc;border:1.5px solid #dbeafe;border-radius:8px;padding:9px 14px;font-family:Arial;color:#0f172a;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:8px;margin:0 0 14px;break-inside:avoid}
+          .attendance-report-card{box-sizing:border-box;background:#f8fafc;border:1.5px solid #dbeafe;border-radius:8px;padding:7px 12px;font-family:Arial;color:#0f172a;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:6px;margin:0 0 10px;break-inside:avoid;page-break-inside:avoid}
           .attendance-title{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#1d4ed8}
-          .attendance-stat{text-align:center;border-left:1px solid #dbeafe;display:flex;align-items:center;justify-content:center;gap:9px;min-height:28px}
+          .attendance-stat{text-align:center;border-left:1px solid #dbeafe;display:flex;align-items:center;justify-content:center;gap:8px;min-height:24px}
           .attendance-label{font-size:8px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em}
-          .attendance-value{font-size:16px;font-weight:800;color:#0f172a}
+          .attendance-value{font-size:15px;font-weight:800;color:#0f172a}
           .attendance-percent{color:#1d4ed8}
-          @media print{.attendance-report-card{padding:8px 12px;margin-bottom:12px}}
+          @media print{.attendance-report-card{padding:6px 10px;margin-bottom:8px}}
         `}</style>
         <div className="attendance-title">Attendance</div>
         <div className="attendance-stat"><div className="attendance-label">Attendance</div><div className="attendance-value">{attendance.adjusted_attended ?? 0}/{attendance.total_sessions ?? 0}</div></div>
