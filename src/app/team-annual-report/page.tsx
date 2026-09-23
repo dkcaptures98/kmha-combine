@@ -12,10 +12,8 @@ type DisplayAthlete = { id: string; first_name: string; last_name: string; row: 
 
 const U10_12 = ['U10AA','U10AAA','U11AA','U11AAA','U12AA','U12AAA']
 const SEASONS = ['2025-2026','2026-2027','2027-2028','2028-2029']
-
 function isYoungTeam(team:string){return U10_12.includes(team)}
-function getTests(team:string):TestDef[]{const young=isYoungTeam(team);return[
- {key:'height',label:'Height',lower:false,performance:false},{key:'wingspan',label:'Wingspan',lower:false,performance:false},{key:'sprint',label:'10m Sprint',lower:true,performance:true},{key:'vertical',label:'Vertical Jump',lower:false,performance:true},young?{key:'chinhold',label:'Chin Up Hold',lower:false,performance:true}:{key:'chinups',label:'Chinups',lower:false,performance:true},{key:'broad',label:'Broad Jump',lower:false,performance:true},...(!young?[{key:'time',label:'0.5km Assault Bike Time',lower:true,performance:true},{key:'watts',label:'0.5km Assault Bike Avg Watts',lower:false,performance:true}]:[])]}
+function getTests(team:string):TestDef[]{const young=isYoungTeam(team);return[{key:'height',label:'Height',lower:false,performance:false},{key:'wingspan',label:'Wingspan',lower:false,performance:false},{key:'sprint',label:'10m Sprint',lower:true,performance:true},{key:'vertical',label:'Vertical Jump',lower:false,performance:true},young?{key:'chinhold',label:'Chin Up Hold',lower:false,performance:true}:{key:'chinups',label:'Chinups',lower:false,performance:true},{key:'broad',label:'Broad Jump',lower:false,performance:true},...(!young?[{key:'time',label:'0.5km Assault Bike Time',lower:true,performance:true},{key:'watts',label:'0.5km Assault Bike Avg Watts',lower:false,performance:true}]:[])]}
 function toInches(ft?:number|null,inches?:number|null){if(ft==null&&inches==null)return null;const total=(ft??0)*12+(inches??0);return total>0?total:null}
 function parseTimeSeconds(v?:string|null){if(!v)return null;const s=String(v).trim();if(!s)return null;if(s.includes(':')){const[m,sec]=s.split(':').map(Number);const total=Number.isFinite(m)&&Number.isFinite(sec)?m*60+sec:null;return total&&total>0?total:null}const n=Number(s);return Number.isFinite(n)&&n>0?n:null}
 function positiveOrNull(v?:number|null){return typeof v==='number'&&Number.isFinite(v)&&v>0?v:null}
@@ -32,6 +30,7 @@ function fmtChange(v:number|null){if(v==null)return'N/A';if(Math.abs(v)<0.05)ret
 function changeColour(v:number|null,lower:boolean){if(v==null||Math.abs(v)<0.05)return'#64748b';const improved=lower?v<0:v>0;return improved?'#059669':'#dc2626'}
 function splitName(name?:string){const parts=(name||'').trim().split(/\s+/).filter(Boolean);if(!parts.length)return{first_name:'Unknown',last_name:'Athlete'};if(parts.length===1)return{first_name:parts[0],last_name:''};return{first_name:parts.slice(0,-1).join(' '),last_name:parts[parts.length-1]}}
 function previousPeriodFor(season:string,phase:string){if(phase==='inseason')return{season,phase:'offseason'};const index=SEASONS.indexOf(season);return index>0?{season:SEASONS[index-1],phase:'inseason'}:null}
+function athleteKey(row:CombineResult){return (row.athlete_name||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'')}
 
 function TeamAnnualReportContent(){
  const params=useSearchParams();const team=params.get('team')||'';const season=params.get('season')||'2026-2027';const phase=params.get('roster_phase')||'offseason'
@@ -45,7 +44,17 @@ function TeamAnnualReportContent(){
  const previousTarget=previousPeriodFor(season,phase)
  const previousRows=previousTarget?rows.filter(r=>r.team===team&&r.season===previousTarget.season&&r.roster_phase===previousTarget.phase):[]
  const previousPeriod=previousRows[0]
- const summaries=useMemo(()=>tests.map(t=>{const currentVals=teamRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const previousVals=previousRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const rawCurrentAvg=avg(currentVals);const rawPreviousAvg=avg(previousVals);const currentAvg=displayedAverage(t.key,rawCurrentAvg);return{...t,currentAvg,change:(t.key==='height'||t.key==='wingspan')?null:percentChange(rawCurrentAvg,rawPreviousAvg)}}),[tests,teamRows,previousRows])
+ const summaries=useMemo(()=>{
+  const previousByAthlete=new Map(previousRows.map(r=>[athleteKey(r),r]).filter(([k])=>k))
+  return tests.map(t=>{
+   const currentVals=teamRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v))
+   const rawCurrentAvg=avg(currentVals)
+   const pairedCurrent:number[]=[];const pairedPrevious:number[]=[]
+   for(const currentRow of teamRows){const key=athleteKey(currentRow);if(!key)continue;const previousRow=previousByAthlete.get(key);if(!previousRow)continue;const currentValue=value(currentRow,t.key);const previousValue=value(previousRow,t.key);if(currentValue!=null&&previousValue!=null&&Number.isFinite(currentValue)&&Number.isFinite(previousValue)){pairedCurrent.push(currentValue);pairedPrevious.push(previousValue)}}
+   const matchedCurrentAvg=avg(pairedCurrent);const matchedPreviousAvg=avg(pairedPrevious)
+   return{...t,currentAvg:displayedAverage(t.key,rawCurrentAvg),change:(t.key==='height'||t.key==='wingspan')?null:percentChange(matchedCurrentAvg,matchedPreviousAvg),matchedCount:pairedCurrent.length}
+  })
+ },[tests,teamRows,previousRows])
  if(!team)return<div style={{padding:48,fontFamily:'Arial'}}>No team selected</div>
  if(loading)return<div style={{padding:48,fontFamily:'Arial'}}>Generating team report...</div>
  const headerCell:React.CSSProperties={padding:'10px 9px',color:'white',textAlign:'center',fontSize:9,textTransform:'uppercase',letterSpacing:'.04em',lineHeight:1.25}
