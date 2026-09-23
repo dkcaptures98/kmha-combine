@@ -26,6 +26,7 @@ function avg(nums:number[]){return nums.length?nums.reduce((s,v)=>s+v,0)/nums.le
 function fmtInches(v:number){const total=Math.round(v);const ft=Math.floor(total/12);return `${ft}'${total-ft*12}\"`}
 function fmt(key:string,v:number|null){if(v==null)return'N/A';if(['height','wingspan','broad'].includes(key))return fmtInches(v);if(key==='sprint')return`${v.toFixed(2)}s`;if(key==='time')return`${v.toFixed(1)}s`;if(key==='vertical')return`${v.toFixed(1)} cm`;if(key==='watts')return`${v.toFixed(1)} W`;return v.toFixed(1)}
 function phaseLabel(phase?:string|null){return phase==='offseason'?'Offseason':phase==='inseason'?'In-Season':(phase||'—')}
+function displayedAverage(key:string,v:number|null){if(v==null)return null;if(key==='sprint')return Number(v.toFixed(2));if(key==='height'||key==='wingspan'||key==='broad')return Math.round(v);return Number(v.toFixed(1))}
 function improvement(current:number|null,previous:number|null,lower:boolean){if(current==null||previous==null||previous===0)return null;const raw=((current-previous)/previous)*100;return lower?-raw:raw}
 function fmtChange(v:number|null){if(v==null)return'N/A';if(Math.abs(v)<0.05)return'0.0%';return`${v>0?'+':''}${v.toFixed(1)}%`}
 function changeColour(v:number|null){if(v==null)return'#64748b';if(v>0)return'#059669';if(v<0)return'#dc2626';return'#64748b'}
@@ -44,7 +45,7 @@ function TeamAnnualReportContent(){
  const previousTarget=previousPeriodFor(season,phase)
  const previousRows=previousTarget?rows.filter(r=>r.team===team&&r.season===previousTarget.season&&r.roster_phase===previousTarget.phase):[]
  const previousPeriod=previousRows[0]
- const summaries=useMemo(()=>tests.map(t=>{const currentVals=teamRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const previousVals=previousRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const currentAvg=avg(currentVals);const previousAvg=avg(previousVals);return{...t,currentAvg,change:(t.key==='height'||t.key==='wingspan')?null:improvement(currentAvg,previousAvg,t.lower)}}),[tests,teamRows,previousRows])
+ const summaries=useMemo(()=>tests.map(t=>{const currentVals=teamRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const previousVals=previousRows.map(r=>value(r,t.key)).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));const rawCurrentAvg=avg(currentVals);const rawPreviousAvg=avg(previousVals);const currentAvg=displayedAverage(t.key,rawCurrentAvg);const previousAvg=displayedAverage(t.key,rawPreviousAvg);return{...t,currentAvg,change:(t.key==='height'||t.key==='wingspan')?null:improvement(currentAvg,previousAvg,t.lower)}}),[tests,teamRows,previousRows])
  if(!team)return<div style={{padding:48,fontFamily:'Arial'}}>No team selected</div>
  if(loading)return<div style={{padding:48,fontFamily:'Arial'}}>Generating team report...</div>
  const headerCell:React.CSSProperties={padding:'10px 9px',color:'white',textAlign:'center',fontSize:9,textTransform:'uppercase',letterSpacing:'.04em',lineHeight:1.25}
