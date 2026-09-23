@@ -31,7 +31,8 @@ function fmtChange(v:number|null){if(v==null)return'N/A';if(Math.abs(v)<0.05)ret
 function changeColour(v:number|null,lower:boolean){if(v==null||Math.abs(v)<0.05)return'#64748b';const improved=lower?v<0:v>0;return improved?'#059669':'#dc2626'}
 function splitName(name?:string){const parts=(name||'').trim().split(/\s+/).filter(Boolean);if(!parts.length)return{first_name:'Unknown',last_name:'Athlete'};if(parts.length===1)return{first_name:parts[0],last_name:''};return{first_name:parts.slice(0,-1).join(' '),last_name:parts[parts.length-1]}}
 function previousPeriodFor(season:string,phase:string){if(phase==='inseason')return{season,phase:'offseason'};const index=SEASONS.indexOf(season);return index>0?{season:SEASONS[index-1],phase:'inseason'}:null}
-function athleteKey(row:CombineResult){const id=(row.athlete_id||'').trim();if(id)return id;return(row.athlete_name||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'')}
+function normalizeName(v?:string){return(v||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'')}
+function athleteKey(row:CombineResult){const name=normalizeName(row.athlete_name);return name||((row.athlete_id||'').trim())}
 
 function TeamAnnualReportContent(){
  const params=useSearchParams();const team=params.get('team')||'';const season=params.get('season')||'2026-2027';const phase=params.get('roster_phase')||'offseason'
